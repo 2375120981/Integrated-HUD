@@ -108,6 +108,38 @@ function Module.new(sr,facts,log)
   end
   return found
  end
+ -- Positive matches identify a held model. A visible model away from the
+ -- hand excludes that candidate; missing resources are unknown, not proof.
+ local function hand_models(hashes)
+  local b=player_unit();if not b or call(U.has_node,b,'attach_hand_r')~=true then return nil end
+  local node=call(U.node,b,'attach_hand_r');if not finite(node) then return nil end
+  local hand=call(U.world_position,b,node);if not hand then return nil end
+  local result,resources={},{}
+  for _,h in ipairs(hashes) do
+   local p=(facts.bootstrap or{})[h]
+   if p then
+    local key=p.resource..':'..tostring(p.offset or 0)
+    local sample=resources[key]
+    if not sample then
+     sample={seen=0,hits=0,valid=true};resources[key]=sample
+     local list=call(W.units_by_resource,ctx.world,call(I64.from_hex,p.resource))
+     local visited=0
+     for _,u in pairs(type(list)=='table' and list or{}) do
+      visited=visited+1;if visited>16 then sample.valid=false;break end
+      local pos=position(u);local d=pos and call((sr.Vector3 or{}).distance,hand,pos)
+      if finite(d) then
+       sample.seen=sample.seen+1
+       if math.abs(d-(p.offset or 0))<=.15 then sample.hits=sample.hits+1 end
+      else sample.valid=false end
+     end
+    end
+    if sample.valid and sample.hits==1 then result[h]=true
+    elseif sample.valid and sample.hits>1 then result[h]='ambiguous'
+    elseif sample.valid and sample.hits==0 and sample.seen>0 then result[h]=false end
+   end
+  end
+  return result
+ end
  local function wheel()
   local mouse=sr.Mouse or{};local i=call(mouse.axis_index,'wheel')
   local v=type(i)=='number' and call(mouse.axis,i)
@@ -117,7 +149,7 @@ function Module.new(sr,facts,log)
  end
  local host={data=facts.data,seed=facts.seed,
   time=function()return now end,session=function()return ctx.session end,peer=function()return ctx.peer end,
-  world_id=function()return ctx.world end,player_unit=player_unit,held_type=held_type,
+  world_id=function()return ctx.world end,player_unit=player_unit,held_type=held_type,hand_models=hand_models,
   in_mission=function()return ctx.motion==true and ctx.where==100 and ctx.state==0 end,
   unit_alive=function(u)return call(U.alive,u) end,
   call_kind=function(name,_,...)return engine(name,...)end,
@@ -128,6 +160,12 @@ function Module.new(sr,facts,log)
   sensor=nil;unit=nil;R.value=nil;R.status='WAIT';world=nil;session=nil;avatar=nil
  end
  function R.hide()R.value=nil end
+ function R.capture_inputs(t,current_world)
+  if not sensor or not ctx or current_world~=world or ctx.motion~=true or ctx.where~=100 or ctx.state~=0 then return end
+  if sr.Window and call(sr.Window.show_cursor)==true then return end
+  now=t
+  call(sensor.capture_input,t)
+ end
  function R.update(t,c)
   now=t;ctx=c
   if world~=c.world or session~=c.session then

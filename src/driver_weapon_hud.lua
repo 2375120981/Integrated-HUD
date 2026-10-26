@@ -6,7 +6,7 @@ do
  local function note(text)
   pcall(function()
    local base=os.getenv('APPDATA');if not base then return end
-   local f=io.open(base..'/Arrowhead/Helldivers2/IntegratedHUD-Weapon-0.3.9.log','a')
+   local f=io.open(base..'/Arrowhead/Helldivers2/IntegratedHUD-Weapon-0.3.11.log','a')
    if f then f:write(text..'\n');f:close()end
   end)
  end
@@ -32,6 +32,7 @@ do
  M.integrated_weapon_hide=function()erase();reader.hide()end
  M.integrated_weapon_begin=function(worlds,world)
   latest_worlds=worlds
+  if reader.capture_inputs then reader.capture_inputs(M.clock,world)end
   if owner and(owner~=M.gui or not live(worlds,owner_world))then groups={};owner=nil end
   if M.clock-last_tick>.35 then erase();reader.hide()end
  end
@@ -127,5 +128,5 @@ do
  end
  local reset=full_reset
  full_reset=function()M.integrated_weapon_hide();return reset()end
- note('WEAPON_START version=0.3.9 reader=NarrowHUD_1.0.5_sensor host=independent cold_model_confirmation=true font=monocraft_geometry modes=bundled_geometry firemode_display=false reload=hidden anchor=screen_center')
+ note('WEAPON_START version=0.3.11 reader=NarrowHUD_1.0.5_sensor host=independent cold_model_confirmation=true font=monocraft_geometry modes=bundled_geometry firemode_display=false reload=hidden anchor=screen_center')
 end

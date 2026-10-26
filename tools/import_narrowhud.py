@@ -64,7 +64,7 @@ def main():
         'name': 'NarrowHUD', 'version': '1.0.5', 'author': 'luka189',
         'url': 'https://github.com/luka189/NarrowHUD',
         'original_source_sha256': hashlib.sha256(original).hexdigest(),
-        'changes': 'Weapon sensor extraction; no menu, original renderer, squad/stratagem or independent backpack HUD; 400 type tests per frame; independent unit adapter and weapon-only update tail.'
+        'changes': 'Weapon sensor extraction; no menu or original renderer; independent adapter; actual hand pose/model reconciliation at 0.1 s; swap-input selection disabled; frame-level fire input retained for ownership learning.'
     }, indent=2) + '\n', encoding='utf-8')
     print('Imported weapon sensor, data and license.')
 

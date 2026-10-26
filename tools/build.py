@@ -152,6 +152,8 @@ def main():
         'weapon_arc_geometry': 'annular_quads_two_triangles_outline_63_degrees',
         'weapon_font': 'bundled_monocraft_geometry', 'font_program_embedded': False, 'fire_mode_display': False,
         'weapon_mode_icons': 'bundled_original_icon_geometry', 'native_text_or_bitmap_required': False,
+        'weapon_input_capture': 'fire_only_per_render_frame',
+        'weapon_selection': 'pose_and_hand_models_0.1_seconds', 'swap_input_selects_weapon': False,
         'weapon_primitive_groups': ['arc', 'count', 'modes'], 'hudplus_runtime_dependency': False,
         'syntax': True, 'basic_checks': checks, 'deployed': False, 'checksum_sidecars': False,
     }

@@ -81,6 +81,59 @@ v=step(20);assert(v and v.id==21,'cold LAS-12 required a weapon swap')
 cache_rows={'poses\t960653cb\t15','modes\t960653cb\t1','options1\t960653cb\t0'}
 facts.bootstrap={};r=chunk().new(sr,facts,function()end);c.world='cached-laser'
 v=step(20);assert(v and v.id==21,'single numeric pose was discarded by cache parser')
+-- Shared pose, no fire input: poll the actual hand models, never swap intent.
+cache_rows=nil;facts.seed.grip[pistol]=15;facts.seed.poses[pistol]='15'
+facts.seed.grip[laser]=15;facts.seed.poses[laser]='15'
+facts.seed.slot[pistol]=2;facts.seed.slot[laser]=1
+facts.bootstrap={[pistol]={resource='pistol_model',offset=0}}
+local actual='laser'
+local wheel_value=0
+local wheel_reads=0
+sr.Mouse={axis_index=function()wheel_reads=wheel_reads+1;return 0 end,axis=function()return wheel_value end}
+sr.Vector3.distance=function(a,b)return math.abs(a-b)end
+U.world_position=function(u)return u=='pistol' and (actual=='pistol' and 0 or 1) or 0 end
+W.units_by_resource=function(_,resource)
+ if resource=='4d1c334d294dfa97'then return {'body'}end
+ if resource=='pistol_model'then return {'pistol'}end
+ return {}
+end
+r=chunk().new(sr,facts,function()end);c.world='actual-shared-pose';selected=15
+v=step(20);assert(v and v.id==21 and v.heat_ratio~=nil,'stowed model did not exclude pistol')
+actual='pistol';v=step();assert(v and v.id==20 and v.ammo_ratio~=nil,'hand model did not correct heat to ammo without firing')
+-- Requested swaps may be cancelled, doubled, or collapse into one animation.
+for _=1,4 do
+ t=t+.016;wheel_value=1;r.capture_inputs(t,c.world)
+end
+wheel_value=0;v=step();assert(v and v.id==20,'cancelled swap changed HUD despite the same actual model')
+actual='laser';v=step();assert(v and v.id==21 and v.heat_ratio~=nil,'hand recheck did not correct ammo to heat')
+actual='pistol';v=step();assert(v and v.id==20,'rapid actual switch not reconciled')
+assert(wheel_reads==0,'wheel intent still controls weapon selection')
+-- Missing model listings do not prove a gun is stowed: hide ambiguous cases.
+W.units_by_resource=function(_,resource)
+ if resource=='4d1c334d294dfa97'then return {'body'}end
+ return {}
+end
+v=step();assert(v==nil,'missing resources incorrectly excluded a shared-pose weapon')
+W.units_by_resource=function(_,resource)
+ if resource=='4d1c334d294dfa97'then return {'body'}end
+ if resource=='pistol_model'then return {'pistol'}end
+ return {}
+end
+v=step();assert(v and v.id==20,'recovered hand evidence did not restore HUD')
+-- More than one nearby model cannot prove a unique held weapon.
+local normal_world_units=W.units_by_resource
+W.units_by_resource=function(w,resource)
+ if resource=='pistol_model'then return {'pistol','pistol-copy'}end
+ return normal_world_units(w,resource)
+end
+v=step();assert(v==nil,'duplicate nearby models were accepted')
+W.units_by_resource=normal_world_units
+v=step();assert(v and v.id==20,'HUD failed to recover after model ambiguity')
+-- Reused/missing GOIDs cannot be selected solely by a matching model.
+states[20]=nil;v=step();assert(not v or v.id~=20,'destroyed weapon selected through model evidence')
 return {narrow_pistol_chamber_and_fixed_mode=true,narrow_live_ammo=true,narrow_reload_state=true,
  narrow_las12_heat=true,narrow_vehicle_hide=true,narrow_world_reset=true,
- narrow_las12_cold_hand_model=true,narrow_cache_numeric_strings_preserved=true}
+ narrow_las12_cold_hand_model=true,narrow_cache_numeric_strings_preserved=true,
+ narrow_hand_poll_without_firing=true,narrow_actual_model_over_swap_intent=true,
+ narrow_missing_model_not_stowed=true,narrow_destroyed_hand_object_rejected=true,
+ narrow_duplicate_hand_models_rejected=true}

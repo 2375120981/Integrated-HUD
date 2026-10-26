@@ -19,3 +19,6 @@ captures/
 /src/weapon_native_ui.lua
 /tests/weapon_reader_basic_check.lua
 /data/weapons.json
+
+# Local development archive
+/开发记录/
