@@ -1,4 +1,4 @@
-# 0.3.11 潜兵武器 HUD 验证
+# 0.4.0 潜兵武器 HUD 验证
 
 本版采用 NarrowHUD 1.0.5 衍生武器传感器，独立加载；基于 HUD+ 0.1.13 Ring 的环带三角形方案实现单圆弧。载具/机甲实现保持本次改动前的版本。
 
@@ -20,7 +20,7 @@ Monocraft 字号、圆弧、图标及载具和机甲显示不变。
 
 ## 使用
 
-退出游戏，导入并部署 dist/IntegratedHUD-0.3.11.zip，停用旧版集成 HUD。核对本版显示时停用 NarrowHUD、HUD+ 及同类武器 HUD，避免重叠。集成 HUD 不需要 Chef、BSL、FFI 或 Python；其他模组的前置按各自要求保留。
+退出游戏，导入并部署 dist/IntegratedHUD-0.4.0.zip，停用旧版集成 HUD。核对本版显示时停用 NarrowHUD、HUD+ 及同类武器 HUD，避免重叠。集成 HUD 不需要 Chef、BSL、BML、MDL、FFI 或 Python；其他模组的前置按各自要求保留。
 
 本轮只需基本确认：
 
@@ -33,7 +33,7 @@ Monocraft 字号、圆弧、图标及载具和机甲显示不变。
 
 数据通过游戏网络对象字段读取，采用姿态、开火变化和切枪输入辅助关联，不读取原生 HUD 文字或外部进程内存。热量采样不是逐帧同步，平滑显示包含预测与读数纠偏。弹匣配件容量在对象观察/首次换弹后校正，未确定时使用种子；未知武器和相同姿态武器仍可能需要开火确认。默认按游戏的鼠标左键、1/2/3 和手柄默认键识别输入，自定义键位的相同姿态切枪仍需后续适配。
 
-日志：%APPDATA%/Arrowhead/Helldivers2/IntegratedHUD-Weapon-0.3.11.log。
+日志：%APPDATA%/Arrowhead/Helldivers2/IntegratedHUD-Weapon-0.4.0.log。
 学习缓存：%APPDATA%/Arrowhead/Helldivers2/IntegratedHUD-weapon-learned-v1.txt；采用纯数据格式，不执行缓存代码。退出游戏后删除此缓存可恢复随包种子。
 
 移植的是传感器逻辑，未引入 Chef 的原生崩溃隔离；Lua pcall 不等同于其保护。实现保留字段声明检查、读取前对象存在/类型检查与世界切换清理。当前目标游戏 Steam Build 26088801。

@@ -160,8 +160,12 @@ def main():
     manifest = {
         'Version': 1, 'Guid': 'ae374de7-86d0-5fa6-8a42-8fcb4d9b07fe',
         'Name': cfg['name'],
-        'Description': '集成载具、机甲与潜兵武器HUD ' + version + '，独立加载。',
-        'Options': [{'Name': '集成HUD', 'Description': '座位、轮胎及血量显示。', 'Include': ['HUD']}],
+        'Description': ('集成HUD（Integrated HUD）' + version + '\n'
+                        '武器HUD：准星右侧单圆弧显示弹匣余量或热量，显示弹药数字、功能模式图标及射速设置；换弹时自动隐藏，采用Monocraft字体。\n'
+                        'FRV／坦克HUD：显示载具外形、座位占用和当前血量，突出标记本地玩家座位；FRV额外显示轮胎状态。\n'
+                        '机甲HUD：统一机甲剪影，显示当前血量，并随血量变化调整颜色。\n'
+                        '前置依赖：独立加载，无需Chef、BSL、BML、MDL、FFI、Python或外部采样器；使用支持本包格式的模组管理器安装。'),
+        'Options': [{'Name': '集成HUD', 'Description': '启用潜兵武器弹药／热量圆弧、功能模式，以及FRV、坦克和机甲HUD；独立加载，无额外加载器依赖。', 'Include': ['HUD']}],
     }
     files = {
         'manifest.json': json.dumps(manifest, ensure_ascii=False, indent=2).encode(),
