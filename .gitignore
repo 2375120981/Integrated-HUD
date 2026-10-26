@@ -1,0 +1,14 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+dist/
+build/
+*.log
+*.sha256
+SHA256SUMS*
+.env
+.env.*
+research/
+captures/
+.work/

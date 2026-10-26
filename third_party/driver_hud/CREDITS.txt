@@ -1,0 +1,34 @@
+DRIVER HUD — Credits and third-party notices
+
+Bingus Shared Loader
+Author / maintainer: CowboyBingus
+DRIVER HUD uses Bingus Shared Loader V21 Official Fix API 1 addon discovery as its shared
+Lua startup path. Bingus Shared Loader is a separate dependency and is not
+redistributed with DRIVER HUD.
+Nexus Mods: https://www.nexusmods.com/helldivers2/mods/16292
+
+HD2 HUD+
+Author: DDRK1NG
+Nexus Mods: https://www.nexusmods.com/helldivers2/mods/15298
+HD2 HUD+ was an important reference during DRIVER HUD bootstrap/UI research.
+DRIVER HUD does not redistribute HD2 HUD+ or its feature modules. A small GUI
+material resource retained from early HUD+ based prototyping is used only for
+DRIVER HUD's own geometry and remains credited here in accordance with the
+HD2 HUD+ reuse permission.
+
+Helldivers 2 and its game assets, names, interfaces and identifiers belong to
+their respective owners.
+
+FRV occupancy contribution / Slot-3 artwork
+Integration based on DRIVER HUD Occupancy Weapon Icons 1.7.1, the derivative
+prepared for Spike in 2026. Its Seater/Inventory layout research and supplied
+33 icon masks/resource mappings are credited to that contribution. The base
+HUD implementation/design and original MIT notice remain FireScallion's.
+The optional icon pack has its own resource and does not redistribute the core.
+
+Icon source: nvigneux / Helldivers-2-Stratagems-icons-svg
+https://github.com/nvigneux/Helldivers-2-Stratagems-icons-svg
+Resource-name reference: Darctor / Helldivers2_RawData, Data/Hash.csv
+https://github.com/Darctor/Helldivers2_RawData
+These references and permissions are retained from the supplied 1.7.1 notices.
+Third-party artwork is not relicensed as newly authored project code.
