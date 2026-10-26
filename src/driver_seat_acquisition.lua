@@ -48,5 +48,5 @@ do
   end
   return keep
  end
- log('IHUD_SEAT_ACQUISITION version=0.3.0 budget_retry=true supply_mask_diagnostics=false supply_seat_bits=8,16,1,2')
+ log('IHUD_SEAT_ACQUISITION version=0.3.3 budget_retry=true supply_mask_diagnostics=false supply_seat_bits=8,16,1,2')
 end

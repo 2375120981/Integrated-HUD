@@ -6,6 +6,8 @@ sr.Window={show_cursor=function()return false end}
 local world_main,world_overlay='simulation','overlay'
 A.worlds=function()return {world_main,world_overlay}end;A.main_world=function()return world_main end
 A.back_buffer_size=function()return 1920,1080 end
+A.can_get=function()return true end
+sr.IdString64={from_hex=function(s)return s end}
 N.game_session=function()return 1 end;N.peer_id=function()return 0 end
 local native={batch=0,field=0,owned=0};local per_id={}
 local measurements={}
@@ -35,9 +37,48 @@ Q.triangle=function(gui,a,b,c,z,color,material,...)
  assert(pools[gui]and material=='mods/driver_hud/solid');serial=serial+1;pools[gui][serial]={a,b,c,color};created=created+1;return serial
 end
 Q.destroy_triangle=function(gui,id)assert(pools[gui]and pools[gui][id]);pools[gui][id]=nil;destroyed=destroyed+1 end
+local native_texts,native_icons={},{}
+local baked_texts,baked_icons={},{}
+Q.text_extents=function(_,text,font,size)
+ assert(font=='content/fonts/fs_sinclair_medium_runtime')
+ return {0,0},{#text*size*.5,size*.75}
+end
+local function native_handle(gui,color)
+ serial=serial+1;created=created+1
+ pools[gui][serial]={{-10,0,-10},{-10,0,-10},{-10,0,-10},color}
+ return serial
+end
+Q.text=function(gui,text,font,size,material,at,color)
+ assert(font=='content/fonts/fs_sinclair_medium_runtime'and material=='content/fonts/runtime_font')
+ native_texts[#native_texts+1]=text;return native_handle(gui,color)
+end
+Q.bitmap_uv=function(gui,material,uv0,uv1,at,size,color)
+ assert(at[3]==4 and size[1]>0 and uv0[1]==0 and uv1[1]==1)
+ native_icons[#native_icons+1]=material;return native_handle(gui,color)
+end
+Q.destroy_text=Q.destroy_triangle;Q.destroy_bitmap=Q.destroy_triangle
 local env
+local weapon_view={value=nil}
 env=setmetatable({stingray=sr,os={getenv=function()return nil end},io={},update=function()end,shutdown=function()end,
  require=function(name)
+  if NATIVE_UI_SOURCE and name=='mods/integrated_hud/driver_reference/weapon_art_ui'then
+   local f=assert(loadstring(NATIVE_UI_SOURCE));setfenv(f,env);local module=f();local new=module.new
+   module.new=function(...)
+    local obj=new(...);local text,icon=obj.text,obj.icon
+    obj.text=function(gui,emit,s,...)baked_texts[#baked_texts+1]=s;return text(gui,emit,s,...)end
+    obj.icon=function(gui,emit,s,...)baked_icons[#baked_icons+1]=s;return icon(gui,emit,s,...)end
+    return obj
+   end
+   return module
+  end
+  if WEAPON_ART_SOURCE and name=='mods/integrated_hud/driver_reference/weapon_art'then return assert(loadstring(WEAPON_ART_SOURCE))()end
+  if PRESENTATION_SOURCE and name=='mods/integrated_hud/driver_reference/weapon_presentation'then return assert(loadstring(PRESENTATION_SOURCE))()end
+  if WEAPON_SOURCE and name=='mods/integrated_hud/driver_reference/weapon_reader'then
+   if WEAPON_RENDER_TEST then return {new=function()return {update=function()if weapon_view.fail then error("simulated weapon read failure")end;return weapon_view.value end,hide=function()end}end}end
+   local f=assert(loadstring(WEAPON_SOURCE));setfenv(f,env);return f()
+  end
+  if WEAPON_DATA_SOURCE and name=='mods/integrated_hud/driver_reference/weapon_data'then return assert(loadstring(WEAPON_DATA_SOURCE))()end
+  if WEAPON_LAYOUT_SOURCE and name=='mods/integrated_hud/driver_reference/weapon_layout'then return assert(loadstring(WEAPON_LAYOUT_SOURCE))()end
   if MECH_STYLE_SOURCE and name=='mods/integrated_hud/driver_reference/mech_style_data'then return assert(loadstring(MECH_STYLE_SOURCE))()end
   if MECH_BINDING_SOURCE and name=='mods/integrated_hud/driver_reference/mech_binding'then
    local module=assert(loadstring(MECH_BINDING_SOURCE));setfenv(module,env);return module()
@@ -166,10 +207,72 @@ if MECH_BINDING_SOURCE then
  motion=true;for _=1,10 do env.update(.1)end
  for _,pool in pairs(pools)do assert(next(pool)==nil,'mech exit did not clear')end
 end
+if WEAPON_RENDER_TEST then
+ -- Functional GUI lifecycle check: stable arcs reuse handles; vehicle entry
+ -- and menu opening remove the foot layer without touching stale GUI owners.
+ G.objects_owned_by=function()return {0,10}end
+ motion=true
+ weapon_view.value={id=20,ammo_ratio=.6,heat_ratio=.4,mode='AUTO',rounds=18}
+ for _=1,5 do env.update(.1)end
+ local active=0;for _,pool in pairs(pools)do for _ in pairs(pool)do active=active+1 end end
+ assert(active>0,'weapon arc did not draw')
+ assert(#baked_texts>0 and #native_texts==0,'bundled font did not replace native text')
+ for _,s in ipairs(baked_texts)do assert(s~='AUTO'and s~='SEMI','fire mode label still visible')end
+ weapon_view.value.weapon_mode='FLAK';env.update(.1)
+ assert(baked_icons[#baked_icons]=='FLAK' and #native_icons==0,'bundled FLAK icon was not selected')
+ local standalone=assert(loadstring(NATIVE_UI_SOURCE))()
+ local all_art=assert(loadstring(WEAPON_ART_SOURCE))()
+ for name in pairs(all_art.icons)do
+  local xmin,ymin,xmax,ymax=math.huge,math.huge,-math.huge,-math.huge
+  local ui=standalone.new(all_art,function(x0,y0,x1,y1,x2,y2,a,c)
+   if c[1]~=218 then return end
+   xmin=math.min(xmin,x0,x1,x2);xmax=math.max(xmax,x0,x1,x2)
+   ymin=math.min(ymin,y0,y1,y2);ymax=math.max(ymax,y0,y1,y2)
+  end,function()end)
+  ui.icon(nil,nil,name,0,0,34,1)
+  assert(xmax-xmin<=34.001 and ymax-ymin<=34.001,'icon exceeds shared size box: '..name)
+  if name=='FLAK'then assert(ymax-ymin>33 and ymax-ymin<=34.001,'FLAK reference height changed')end
+ end
+ weapon_view.value.functional_status='SAFE';env.update(.1)
+ assert(baked_texts[#baked_texts]=='SAFE','safe status not restored')
+ weapon_view.value.functional_status='';env.update(.1)
+ local mode_calls=#baked_icons
+ weapon_view.value.rounds=17;env.update(.1)
+ assert(#baked_icons==mode_calls,'ammo change rebuilt unchanged icon group')
+ local function check_single_arc(r,g,b)
+  local count=0
+  for _,pool in pairs(pools)do for _,tri in pairs(pool)do
+   if tri[1][1]>1090 and tri[1][1]<1125 and tri[1][3]>480 and tri[4][2]~=0 and tri[4][1]>100 then
+    count=count+1
+    assert(tri[4][2]==r and tri[4][3]==g and tri[4][4]==b,'wrong arc state or stacked arcs')
+   end
+  end end
+  assert(count>0 and count<=40,'expected one partially filled 20-segment ring')
+ end
+ check_single_arc(236,190,72)
+ weapon_view.value.overheated=true;env.update(.1);check_single_arc(235,60,45)
+ weapon_view.value.heat_ratio=nil;weapon_view.value.overheated=false;env.update(.1);check_single_arc(218,222,219)
+ weapon_view.value.reloading=true;env.update(.1)
+ for _,pool in pairs(pools)do assert(next(pool)==nil,'weapon HUD remained during reload')end
+ weapon_view.value.reloading=false;env.update(.1);check_single_arc(218,222,219)
+ before=created;for _=1,5 do env.update(.1)end;assert(created==before,'stable weapon arcs rebuilt every tick')
+ weapon_view.fail=true;env.update(.1)
+ for _,pool in pairs(pools)do assert(next(pool)==nil,'weapon read failure left stale geometry')end
+ weapon_view.fail=false;env.update(.1)
+ sr.Window.show_cursor=function()return true end
+ for _=1,3 do env.update(.1)end
+ for _,pool in pairs(pools)do assert(next(pool)==nil,'weapon HUD stayed on menu')end
+ sr.Window.show_cursor=function()return false end
+ for _=1,3 do env.update(.1)end
+ motion=false
+ for _=1,10 do env.update(.1)end
+ for _,pool in pairs(pools)do assert(next(pool)==nil,'weapon HUD stayed inside vehicle')end
+ weapon_view.value=nil
+end
 env.shutdown()
 local checks={original_core_attaches=true,original_non_main_world_selected=true,original_frv_draws=true,
  original_cache_reuses_primitives=true,original_health_redraw=true,original_exit_clears=true,captured_supply_rear_entries_and_local_highlight=true,final_tank_style=STYLE_SOURCE~=nil,
- whole_mech_view=MECH_BINDING_SOURCE~=nil,fresh_five_child_tank_first_gunner_entry=MECH_BINDING_SOURCE~=nil}
+ whole_mech_view=MECH_BINDING_SOURCE~=nil,fresh_five_child_tank_first_gunner_entry=MECH_BINDING_SOURCE~=nil,weapon_arcs_cache_menu_and_vehicle_cleanup=WEAPON_RENDER_TEST==true,weapon_bundled_monocraft_and_function_icons=WEAPON_RENDER_TEST==true,weapon_firemode_label_removed=WEAPON_RENDER_TEST==true}
 
 for k,v in pairs(measurements)do checks[k]=v end
 return checks

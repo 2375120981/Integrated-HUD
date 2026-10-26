@@ -35,5 +35,5 @@ do
   end
   return f,why
  end
- log('IHUD_TANK_ACQUISITION version=0.3.0 five_child_hull_discovery=shared_batch seat_binding=original')
+ log('IHUD_TANK_ACQUISITION version=0.3.3 five_child_hull_discovery=shared_batch seat_binding=original')
 end

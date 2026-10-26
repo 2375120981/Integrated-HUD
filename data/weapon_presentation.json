@@ -1,0 +1,73 @@
+{
+  "font": "Monocraft",
+  "icon_size": 34,
+  "icons": {
+    "APHET": {
+      "material": "f8ede5f922c05cb6",
+      "path": "content/ui/mission/hud/weapon_function/ammo_aphet",
+      "aspect": 1
+    },
+    "FLAK": {
+      "material": "9dcc0312a14e11e6",
+      "path": "content/ui/mission/hud/weapon_function/ammo_flak",
+      "aspect": 1
+    },
+    "HEAT": {
+      "material": "4b867645db9f364e",
+      "path": "content/ui/mission/hud/weapon_function/ammo_heat",
+      "aspect": 1
+    },
+    "HE": {
+      "material": "081dcaf42dc2ecbb",
+      "path": "content/ui/mission/hud/weapon_function/ammo_he",
+      "aspect": 1
+    },
+    "GUIDED": {
+      "material": "7db70e669d8034c9",
+      "path": "content/ui/mission/hud/weapon_function/guidance_on",
+      "aspect": 1
+    },
+    "UNGUIDED": {
+      "material": "bc7975e05284cf57",
+      "path": "content/ui/mission/hud/weapon_function/guidance_off",
+      "aspect": 1
+    },
+    "LASER": {
+      "material": "c1028550c62fc4fa",
+      "path": "content/ui/mission/hud/weapon_function/laser_on",
+      "aspect": 1
+    },
+    "NO LASER": {
+      "material": "a9f9bf81827c51e5",
+      "path": "content/ui/mission/hud/weapon_function/laser_off",
+      "aspect": 1
+    },
+    "DEPLOY": {
+      "material": "38adabc6a32af014",
+      "path": "content/ui/mission/hud/weapon_function/firemode_deploy_c4",
+      "aspect": 1
+    },
+    "DETONATE": {
+      "material": "55374383474193f8",
+      "path": "content/ui/mission/hud/weapon_function/firemode_detonate_c4",
+      "aspect": 1
+    },
+    "CLUSTER": {
+      "material": "8dc0ec9ce217ab7f",
+      "path": "content/ui/mission/hud/weapon_function/ammo_frag",
+      "aspect": 1
+    },
+    "BURST": {
+      "material": "62d0512daebb0be0",
+      "path": "content/ui/mission/hud/weapon_function/burst_fire",
+      "aspect": 1
+    },
+    "ARTILLERY": {
+      "material": "f83f6f461ed94e4b",
+      "path": "content/ui/mission/hud/weapon_function/airstrike",
+      "aspect": 1
+    }
+  },
+  "font_source": "bundled_outline_geometry",
+  "icon_source": "bundled_png_coverage_geometry"
+}

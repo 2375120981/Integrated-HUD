@@ -12,3 +12,10 @@ SHA256SUMS*
 research/
 captures/
 .work/
+
+# Local reference archives and superseded weapon prototypes
+*.zip
+/src/weapon_reader.lua
+/src/weapon_native_ui.lua
+/tests/weapon_reader_basic_check.lua
+/data/weapons.json

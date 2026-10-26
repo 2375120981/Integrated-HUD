@@ -1,0 +1,22 @@
+{
+  "anchor": "screen_center",
+  "radius": 160,
+  "thickness": 4,
+  "start_degrees": -31.5,
+  "end_degrees": 31.5,
+  "segments": 20,
+  "label_x": 192,
+  "label_y": 0,
+  "count_x": 137.5,
+  "count_y": -99,
+  "number_height": 24,
+  "mode_height": 14,
+  "reserve_height": 16,
+  "capacity_unverified": true,
+  "reload_scope": "hidden_while_reloading",
+  "arc_count": 1,
+  "display_priority": [
+    "heat",
+    "ammo"
+  ]
+}

@@ -1,6 +1,6 @@
 # 集成HUD（Integrated HUD）
 
-当前版本：**0.3.0**。独立加载的《HELLDIVERS 2》载具和机甲 HUD，基于已验证的 0.2.16 实现定版，版本升级不增加功能。
+当前验证版本：**0.3.9**，潜兵武器 HUD、载具与机甲 HUD 已通过局内验证。武器数字和文字采用 Monocraft。
 
 ## 功能
 
@@ -9,11 +9,11 @@
 - 机甲：所有型号共用整体剪影、视觉分割线和放大的当前血量整数，整体按血量比例变色；不显示百分比、上限、弹药或模块血量。
 - 保留快速候选确认、下车隐藏、补给 FRV 后座映射修复及读取/日志性能优化。
 
-本版仅包含载具与机甲 HUD，不含潜兵武器 HUD。无需 BSL、Chef、FFI 或外部采样器。
+0.3.9 准星右侧单圆弧显示热量或弹匣余量，附近显示弹量、备用弹药、随包武器功能模式图标与可用射速设置。换弹期间整组武器 HUD 隐藏，结束后恢复；无队友、战备或独立背包状态 UI。具体边界及最短验证流程见 [WEAPON-TEST.md](WEAPON-TEST.md)。无需 BSL、Chef、FFI 或外部采样器。
 
 ## 安装
 
-导入构建生成的 `dist/IntegratedHUD-0.3.0.zip`，选择“集成HUD”并部署。替换时关闭游戏，禁用旧版集成 HUD 及提供相同 DRIVER HUD 核心的冲突包。
+导入构建生成的 `dist/IntegratedHUD-0.3.9.zip`，选择“集成HUD”并部署。替换时关闭游戏，禁用旧版集成 HUD 及提供相同 DRIVER HUD 核心的冲突包。核对武器界面时也停用 NarrowHUD、HUD+ 等同类 HUD。其他模组是否需要其加载器取决于其各自前置，本模组不需要。
 
 构建目标为 Steam Build **26088801**。若游戏更新导致构建指纹不匹配，应先适配接口，不应删除指纹校验强行打包。新出现的载具尚未完成初次识别时，HUD 可能短暂等待。
 
@@ -26,6 +26,8 @@ python -m pip install -r requirements.txt
 python tools/build.py --game-root "D:\steam\steamapps\common\Helldivers 2"
 ```
 
+字体和图标的预生成数据已包含在仓库中。若需重新生成，安装 `fonttools`、`Pillow` 后运行 `python tools/bake_weapon_art.py`；字体源与13个图标 PNG 均已随仓库提供。
+
 也可设置环境变量 `HD2_GAME_ROOT` 后执行 `python tools/build.py`。默认输出到 `dist/`；可用 `--output-dir` 指定目录。构建器不会修改游戏或自动部署。
 
 构建会进行必要的 Lua 5.1 编译、有限座位/血量/退出/绘制缓存模拟、原 boot 保留和包体完整性检查。没有压力测试，不生成 sha256 侧车文件。`VERIFICATION.json` 中的哈希是构建记录。
@@ -35,7 +37,8 @@ python tools/build.py --game-root "D:\steam\steamapps\common\Helldivers 2"
 | 目录 | 内容 |
 |---|---|
 | `src/` | 当前运行源码与必要 DRIVER 原始核心 |
-| `layout/` | 构建使用的最终坦克/机甲坐标 |
+| `layout/` | 载具/机甲与武器圆弧坐标 |
+| `data/` | 当前武器传感器数据、字体和图标绘制几何 |
 | `assets/` | 运行需要的几何绘制材质 |
 | `tools/` | 当前构建器、资源读取与归档/几何工具 |
 | `tests/` | 构建使用的必要基本模拟检查 |

@@ -32,5 +32,5 @@ do
    or s:find('BASTION_BIND',1,true)or s:find('entry_mask_confirmed',1,true)
    or s:find('vehicle_bound_',1,true)or s:find('SHUTDOWN',1,true)then verbose_log(s)end
  end
- verbose_log('IHUD_PERFORMANCE version=0.3.0 tank=hull_and_seats_only ownership_cache_seconds=0.2 logging=lifecycle_and_errors')
+ verbose_log('IHUD_PERFORMANCE version=0.3.3 tank=hull_and_seats_only ownership_cache_seconds=0.2 logging=lifecycle_and_errors')
 end

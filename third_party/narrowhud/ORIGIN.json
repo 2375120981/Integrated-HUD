@@ -1,0 +1,8 @@
+{
+  "name": "NarrowHUD",
+  "version": "1.0.5",
+  "author": "luka189",
+  "url": "https://github.com/luka189/NarrowHUD",
+  "original_source_sha256": "38dac3baf0ac44fc6c15081e3161027e988aa04faf5c53d8368db91bba96daae",
+  "changes": "Weapon sensor extraction; no menu, original renderer, squad/stratagem or independent backpack HUD; 400 type tests per frame; independent unit adapter and weapon-only update tail."
+}

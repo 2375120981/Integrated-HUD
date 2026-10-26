@@ -44,15 +44,19 @@ def main():
         (b'if not show_frv and not M.hull then clear();return end',
          b'if not show_frv and not M.hull then if M.integrated_mech_render then M.integrated_mech_render(session,avatar,worlds,world,motion,where,state);return end;clear();return end'),
         (b'  M.preseat_owned=set',
-         b'  if M.integrated_mech_prewarm then M.integrated_mech_prewarm(session,avatar,world,owned_ids)end\n  M.preseat_owned=set'),
+         b'  if M.integrated_mech_prewarm then M.integrated_mech_prewarm(session,avatar,world,owned_ids)end\n  if M.integrated_weapon_tick then M.integrated_weapon_tick(session,avatar,worlds,world,owned_ids,motion,where,state)end\n  M.preseat_owned=set'),
         (b'if not stable or not cached or M.clock>=cached.until_time then',
          b'if not cached or M.clock>=cached.until_time then'),
+        (b' local worlds=call(App.worlds);local world=call(App.main_world)',
+         b' local worlds=call(App.worlds);local world=call(App.main_world)\n if M.integrated_weapon_begin then M.integrated_weapon_begin(worlds,world)end'),
+        (b' M.idle_settled=nil;M.next_idle_probe=nil\n if not M.seated then',
+         b' if M.integrated_weapon_hide then M.integrated_weapon_hide()end\n M.idle_settled=nil;M.next_idle_probe=nil\n if not M.seated then'),
     ]
     for before, after in patches:
         assert core.count(before) == 1, 'Original core patch location changed'
         core = core.replace(before, after, 1)
     extension_names = ['driver_own_style', 'driver_seat_acquisition', 'driver_tank_acquisition',
-                       'driver_mech_hud', 'driver_performance']
+                       'driver_mech_hud', 'driver_performance', 'driver_weapon_hud']
     extensions = [(ROOT / 'src' / (name + '.lua')).read_bytes() for name in extension_names]
     injected = b'-- BEGIN INTEGRATED HUD EXTENSIONS\n' + b'\n'.join(extensions) + b'\n-- END INTEGRATED HUD EXTENSIONS\n'
     marker = b'-- Diagnostics attachment API 1.'
@@ -77,6 +81,27 @@ def main():
         PREFIX + 'mech_binding': binding,
         'boot': boot_source(original),
     }
+    weapon_facts = json.loads((ROOT / 'data/weapon_narrow.json').read_text(encoding='utf-8'))
+    for field in weapon_facts['data']['roles'].values():
+        assert resource_hash(field['name']) >> 32 == int(field['id'], 16), 'Invalid NarrowHUD field token'
+    weapon_data = ('return ' + lua_value(weapon_facts) + '\n').encode()
+    weapon_layout = ('return ' + lua_value(json.loads((ROOT / 'layout/weapon.json').read_text(encoding='utf-8'))) + '\n').encode()
+    weapon_reader = (ROOT / 'src/narrow_weapon_reader.lua').read_bytes()
+    sensor = (ROOT / 'src/vendor/narrowhud_weapon_105.lua').read_bytes()
+    sources[PREFIX + 'weapon_data'] = weapon_data
+    sources[PREFIX + 'weapon_layout'] = weapon_layout
+    sources[PREFIX + 'weapon_reader'] = weapon_reader
+    sources[PREFIX + 'narrowhud_weapon_sensor'] = sensor
+    native_ui = (ROOT / 'src/weapon_art_ui.lua').read_bytes()
+    presentation = json.loads((ROOT / 'data/weapon_presentation.json').read_text(encoding='utf-8'))
+    art = json.loads((ROOT / 'data/weapon_art.json').read_text(encoding='utf-8'))
+    assert art['font'] == 'Monocraft' and not art['font_program_embedded']
+    assert len(art['icons']) == 13 and all(art['glyphs'][ch]['triangles'] for ch in '0123456789RPM%/')
+    art_source = ('return ' + lua_value(art) + '\n').encode()
+    presentation_source = ('return ' + lua_value(presentation) + '\n').encode()
+    sources[PREFIX + 'weapon_art_ui'] = native_ui
+    sources[PREFIX + 'weapon_art'] = art_source
+    sources[PREFIX + 'weapon_presentation'] = presentation_source
     for name, source in sources.items():
         for dep in re.findall(rb"require\(['\"]([^'\"]+)['\"]\)", source):
             assert dep.decode() in sources, (name, dep)
@@ -90,6 +115,13 @@ def main():
     for key, source in [('CORE_SOURCE', core), ('STYLE_SOURCE', tank_data),
                         ('MECH_STYLE_SOURCE', mech_data), ('MECH_BINDING_SOURCE', binding)]:
         test.globals()[key] = source.decode()
+    test.globals().WEAPON_SOURCE = weapon_reader.decode()
+    test.globals().WEAPON_DATA_SOURCE = weapon_data.decode()
+    test.globals().WEAPON_LAYOUT_SOURCE = weapon_layout.decode()
+    test.globals().WEAPON_RENDER_TEST = True
+    test.globals().NATIVE_UI_SOURCE = native_ui.decode()
+    test.globals().WEAPON_ART_SOURCE = art_source.decode()
+    test.globals().PRESENTATION_SOURCE = presentation_source.decode()
     test.globals().PERF_EXPECTED = True
     checks = dict(test.execute((ROOT / 'tests/driver_reference_basic_check.lua').read_text(encoding='utf-8')).items())
     mech_test = LuaRuntime(unpack_returned_tuples=True)
@@ -97,6 +129,12 @@ def main():
     checks.update({'mech_' + key: val for key, val in dict(mech_test.execute(
         (ROOT / 'tests/mech_binding_basic_check.lua').read_text(encoding='utf-8')).items()).items()})
 
+    weapon_test = LuaRuntime(unpack_returned_tuples=True)
+    weapon_test.globals().WEAPON_SOURCE = weapon_reader.decode()
+    weapon_test.globals().WEAPON_DATA_SOURCE = weapon_data.decode()
+    weapon_test.globals().SENSOR_SOURCE = sensor.decode()
+    checks.update({'weapon_' + key: val for key, val in dict(weapon_test.execute(
+        (ROOT / 'tests/narrow_weapon_basic_check.lua').read_text(encoding='utf-8')).items()).items()})
     patch = archive(sources)
     _, types, count = struct.unpack_from('<III', patch)
     entries = [struct.unpack_from('<7Q6I', patch, 72 + 32 * types + i * 80) for i in range(count)]
@@ -109,12 +147,18 @@ def main():
         'core_sha256': digest(core), 'vendor_changes_restricted_to_declared_patches': True,
         'tank_weapon_telemetry': False, 'ownership_cache_seconds': 0.2,
         'mech_health_text': 'current_only', 'periodic_debug_logging': False,
+        'weapon_hud': 'narrowhud_1.0.5_sensor_independent_host', 'weapon_capacity': 'object_calibrated_with_seed_fallback',
+        'reload_progress': 'hidden_while_reloading', 'crosshair_anchor': 'screen_center', 'weapon_arc_count': 1, 'weapon_arc_priority': ['heat','ammo'],
+        'weapon_arc_geometry': 'annular_quads_two_triangles_outline_63_degrees',
+        'weapon_font': 'bundled_monocraft_geometry', 'font_program_embedded': False, 'fire_mode_display': False,
+        'weapon_mode_icons': 'bundled_original_icon_geometry', 'native_text_or_bitmap_required': False,
+        'weapon_primitive_groups': ['arc', 'count', 'modes'], 'hudplus_runtime_dependency': False,
         'syntax': True, 'basic_checks': checks, 'deployed': False, 'checksum_sidecars': False,
     }
     manifest = {
         'Version': 1, 'Guid': 'ae374de7-86d0-5fa6-8a42-8fcb4d9b07fe',
         'Name': cfg['name'],
-        'Description': '集成载具与机甲HUD ' + version + '，独立加载。',
+        'Description': '集成载具、机甲与潜兵武器HUD ' + version + '，独立加载。',
         'Options': [{'Name': '集成HUD', 'Description': '座位、轮胎及血量显示。', 'Include': ['HUD']}],
     }
     files = {
@@ -129,10 +173,17 @@ def main():
         data = (ROOT / 'assets/driver_hud' / name).read_bytes()
         assert digest(data) == expected, 'Required material asset changed: ' + name
         files['HUD/' + name] = data
-    for name in ['README.md', 'CREDITS.md', 'LICENSE.md']:
+    for name in ['README.md', 'CREDITS.md', 'LICENSE.md', 'WEAPON-TEST.md']:
         files[name] = (ROOT / name).read_bytes()
     for name in ['LICENSE.txt', 'CREDITS.txt']:
         files['third_party/driver_hud/' + name] = (ROOT / 'third_party/driver_hud' / name).read_bytes()
+    for name in ['LICENSE.txt', 'ORIGIN.json']:
+        files['third_party/narrowhud/' + name] = (ROOT / 'third_party/narrowhud' / name).read_bytes()
+    for name in ['LICENSE.txt', 'ORIGIN.json']:
+        files['third_party/monocraft/' + name] = (ROOT / 'third_party/monocraft' / name).read_bytes()
+    for path in sorted((ROOT / 'assets/weapon_icons').glob('*.png')):
+        files['Artwork/WeaponIcons/' + path.name] = path.read_bytes()
+    files['Artwork/README.md'] = (ROOT / 'assets/weapon_icons/README.md').read_bytes()
     args.output_dir.mkdir(parents=True, exist_ok=True)
     out = args.output_dir / ('IntegratedHUD-' + version + '.zip')
     assert not out.exists(), 'Preserve existing release; choose a different output directory'

@@ -61,5 +61,5 @@ do
  end
  local original_reset=full_reset
  full_reset=function()reader.release();snapshot=nil;return original_reset()end
- log('IHUD_MECH_UI version=0.3.0 silhouette=symmetric_raised_arms health=current_only visual_seams=true module_health=false model_names=false')
+ log('IHUD_MECH_UI version=0.3.3 silhouette=symmetric_raised_arms health=current_only visual_seams=true module_health=false model_names=false')
 end
