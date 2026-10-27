@@ -106,7 +106,7 @@ for _=1,4 do
  t=t+.016;wheel_value=1;r.capture_inputs(t,c.world)
 end
 wheel_value=0;v=step();assert(v and v.id==20,'cancelled swap changed HUD despite the same actual model')
-actual='laser';v=step();assert(v and v.id==21 and v.heat_ratio~=nil,'hand recheck did not correct ammo to heat')
+actual='laser';v=step(2);assert(v and v.id==21 and v.heat_ratio~=nil,'hand recheck did not correct ammo to heat')
 actual='pistol';v=step();assert(v and v.id==20,'rapid actual switch not reconciled')
 assert(wheel_reads==0,'wheel intent still controls weapon selection')
 -- Missing model listings do not prove a gun is stowed: hide ambiguous cases.
@@ -114,7 +114,8 @@ W.units_by_resource=function(_,resource)
  if resource=='4d1c334d294dfa97'then return {'body'}end
  return {}
 end
-v=step();assert(v==nil,'missing resources incorrectly excluded a shared-pose weapon')
+v=step();assert(v and v.id==20,'brief missing resources caused immediate hide')
+v=step(8);assert(v==nil,'missing-resource grace did not expire')
 W.units_by_resource=function(_,resource)
  if resource=='4d1c334d294dfa97'then return {'body'}end
  if resource=='pistol_model'then return {'pistol'}end
@@ -152,9 +153,33 @@ assert(v and v.id==22 and v.rounds==2 and v.reserve==1,'APW ammo frozen at spawn
 v=step(30);assert(v and v.id==22 and v.rounds==2 and v.reserve==1,'APW disappears after on-body rescans')
 selected=15;actual_apw=false;v=step();assert(not v or v.id~=22,'stowed APW retained when another weapon held')
 selected=52;actual_apw=true;v=step();assert(v and v.id==22 and v.rounds==2,'APW switching back reset ammo to seed')
+-- Unknown carry-less objects must not hide a confirmed carried gun even
+-- when the model query is temporarily unavailable after classification.
+local apw_world_units=W.units_by_resource
+W.units_by_resource=function(_,resource)
+ if resource=='4d1c334d294dfa97'then return {'body'}end
+ return {}
+end
+v=step(12);assert(v and v.id==22,'weak same-pose candidate displaced carried APW')
+W.units_by_resource=apw_world_units
+v=step();assert(v and v.id==22)
+-- Pose transitions keep live readings briefly, but never renew their own timer.
+selected=0;states[22].rounds=1
+v=step(4);assert(v and v.id==22 and v.rounds==1,'brief animation gap hid/froze confirmed gun')
+v=step(5);assert(v==nil,'animation grace retained old gun indefinitely')
+selected=52;v=step();assert(v and v.id==22,'pose recovery required firing/reload')
+-- Explicit grenade/stratagem poses, drop, avatar and mission changes bypass grace.
+selected=40;assert(step()==nil,'grenade pose reused weapon grace')
+selected=52;assert(step().id==22)
+states[22].carry=2;assert(step()==nil,'dropped object retained through grace')
+states[22].carry=0;v=step(12);assert(v and v.id==22)
+selected=0;c.avatar=11;v=step();assert(v==nil,'avatar change reused the old avatar gun')
+c.avatar=10;selected=52;v=step(20);assert(v and v.id==22)
+c.motion=false;assert(step()==nil,'vehicle entry kept grace')
 return {narrow_pistol_chamber_and_fixed_mode=true,narrow_live_ammo=true,narrow_reload_state=true,
  narrow_las12_heat=true,narrow_vehicle_hide=true,narrow_world_reset=true,
  narrow_las12_cold_hand_model=true,narrow_cache_numeric_strings_preserved=true,
  narrow_hand_poll_without_firing=true,narrow_actual_model_over_swap_intent=true,
  narrow_missing_model_not_stowed=true,narrow_destroyed_hand_object_rejected=true,
- narrow_duplicate_hand_models_rejected=true,narrow_apw_shared_pose_model=true,narrow_apw_live_ammo=true}
+ narrow_duplicate_hand_models_rejected=true,narrow_apw_shared_pose_model=true,narrow_apw_live_ammo=true,narrow_motion_grace_bounded=true,
+ narrow_weak_objects_do_not_hide_carried_gun=true,narrow_grace_rejects_avatar_and_drop=true}

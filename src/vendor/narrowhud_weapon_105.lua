@@ -1345,6 +1345,12 @@ local check_i,check_ready=1,false
 -- unused: a requested swap is not evidence the game actually switched guns.
 local input_at=nil
 local hand_diag_at=0
+local confirmed,pending=nil,nil
+local HAND_GRACE=.8
+function M.invalidate_hand()
+  confirmed,pending=nil,nil
+  shown_now=nil;hand.goid,hand.grip=nil,nil
+end
 function M.capture_input(now)
   if input_at==now then return end
   input_at=now
@@ -1381,27 +1387,51 @@ function M.update()
     -- Reconcile actual hand evidence every 0.1 s, independent of swap keys.
     -- Several weapons can share weapon_selected, so pose alone is not enough.
     local goid,source=nil,'unresolved'
+    local hard_conflict=false
+    local evidence,eligible={},{}
     if grip and grip~=0 and not THROWABLE[grip] then
-      local eligible,hashes={},{}
+      local hashes={}
       for id,item in pairs(objs) do
         local t=item.t and TYPES[item.t]
         if t and HANDHELD[t.id] and not t.pack and not t.other and item.on
           and not item.ub and not item.notmine and alive(s,id,t) then
-          eligible[#eligible+1]={id=id,item=item,t=t};hashes[#hashes+1]=t.id
+          -- A one-second inventory scan is too old to retain a dropped gun.
+          local carry=t.has.carry and field(s,id,t,'carry')
+          local carried=not t.has.carry or (type(carry)=='number' and carry%4==0)
+          if carried then
+            eligible[#eligible+1]={id=id,item=item,t=t};hashes[#hashes+1]=t.id
+          end
         end
       end
-      local evidence=chef.hand_models and chef.hand_models(hashes) or {}
+      evidence=chef.hand_models and chef.hand_models(hashes) or {}
       evidence=evidence or {}
-      local matches,possible,ambiguous={},{},false
+      local matches,possible,weak,ambiguous={},{},{},false
       for _,e in ipairs(eligible) do
         local state=evidence[e.t.id]
         if state=='ambiguous' then ambiguous=true
         elseif state==true then matches[#matches+1]=e
-        elseif state~=false and has_pose(e.t.id,grip) then possible[#possible+1]=e end
+        elseif state~=false and has_pose(e.t.id,grip) then
+          -- Missing carry is not positive inventory evidence. A newly learned
+          -- vehicle/NPC gun must not displace an already confirmed local gun.
+          if e.t.has.carry or e.item.mine or (confirmed and confirmed.id==e.id) then
+            possible[#possible+1]=e
+          else weak[#weak+1]=e end
+        end
       end
       local chosen
       if not ambiguous and #matches==1 then chosen=matches[1];source='hand_model'
-      elseif not ambiguous and #matches==0 and #possible==1 then chosen=possible[1];source='pose_and_model_exclusion' end
+      elseif not ambiguous and #matches==0 and #possible==1 then chosen=possible[1];source='pose_and_model_exclusion'
+      elseif not ambiguous and #matches==0 and #possible==0 and #weak==1 and not confirmed then
+        chosen=weak[1];source='initial_pose'
+      end
+      hard_conflict=ambiguous or #matches>1
+      -- Same-pose changes inferred only from exclusion need two samples. A
+      -- positive model or a distinct pose switches immediately.
+      if chosen and confirmed and chosen.id~=confirmed.id and source~='hand_model' and grip==confirmed.grip then
+        if pending and pending.id==chosen.id then pending.n=pending.n+1
+        else pending={id=chosen.id,n=1} end
+        if pending.n<2 then chosen=nil;source='switch_pending' end
+      else pending=nil end
       if chosen then
         goid=chosen.id
         if source=='hand_model' then
@@ -1424,6 +1454,26 @@ function M.update()
         end
         log('HAND_CANDIDATES pose=%s matches=%s possible=%s %s',tostring(grip),tostring(#matches),tostring(#possible),table.concat(details,'; '))
       end
+    end
+    if goid then
+      confirmed={id=goid,t=objs[goid].t,grip=grip,at=now}
+    elseif confirmed and not THROWABLE[grip] and not hard_conflict then
+      local o=objs[confirmed.id]
+      local t=o and o.t and TYPES[o.t]
+      local valid=t and o.t==confirmed.t and o.on and not o.ub and not o.notmine and alive(s,confirmed.id,t)
+      if valid and t.has.carry then
+        local c=field(s,confirmed.id,t,'carry')
+        valid=type(c)=='number' and c%4==0
+      end
+      local limit=HAND_GRACE
+      if grip and grip~=0 and grip~=confirmed.grip then limit=.3 end
+      if evidence[t and t.id] == false then limit=math.min(limit,.2) end
+      if valid and now-confirmed.at<=limit then
+        goid=confirmed.id;source='motion_grace'
+      end
+      if not valid then confirmed=nil end
+    else
+      confirmed,pending=nil,nil
     end
     if M.hand_id~=goid or M.hand_source~=source then
       M.hand_id,M.hand_source=goid,source

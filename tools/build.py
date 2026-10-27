@@ -154,6 +154,7 @@ def main():
         'weapon_mode_icons': 'bundled_original_icon_geometry', 'native_text_or_bitmap_required': False,
         'weapon_input_capture': 'fire_only_per_render_frame',
         'weapon_selection': 'pose_and_hand_models_0.1_seconds', 'swap_input_selects_weapon': False,
+        'weapon_motion_grace_max_seconds': 0.8, 'weapon_live_carry_check': True,
         'weapon_primitive_groups': ['arc', 'count', 'modes'], 'hudplus_runtime_dependency': False,
         'syntax': True, 'basic_checks': checks, 'deployed': False, 'checksum_sidecars': False,
     }

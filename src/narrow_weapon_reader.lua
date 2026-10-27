@@ -159,7 +159,7 @@ function Module.new(sr,facts,log)
   if sensor then call(sensor.flush) end
   sensor=nil;unit=nil;R.value=nil;R.status='WAIT';world=nil;session=nil;avatar=nil
  end
- function R.hide()R.value=nil end
+ function R.hide()R.value=nil;if sensor then call(sensor.invalidate_hand)end end
  function R.capture_inputs(t,current_world)
   if not sensor or not ctx or current_world~=world or ctx.motion~=true or ctx.where~=100 or ctx.state~=0 then return end
   if sr.Window and call(sr.Window.show_cursor)==true then return end
@@ -168,11 +168,11 @@ function Module.new(sr,facts,log)
  end
  function R.update(t,c)
   now=t;ctx=c
-  if world~=c.world or session~=c.session then
-   R.reset();world=c.world;session=c.session;sensor=create(host)
+  if world~=c.world or session~=c.session or avatar~=c.avatar then
+   R.reset();world=c.world;session=c.session;avatar=c.avatar;sensor=create(host)
   end
   if avatar~=c.avatar then avatar=c.avatar;unit=nil end
-  if c.motion~=true or c.where~=100 or c.state~=0 then R.hide();return nil end
+  if c.motion~=true or c.where~=100 or c.state~=0 or (sr.Window and call(sr.Window.show_cursor)==true) then R.hide();return nil end
   local d=sensor.update()
   if not d then R.value=nil;R.status='IDENTIFY'
   else
