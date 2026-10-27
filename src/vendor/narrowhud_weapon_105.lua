@@ -1344,6 +1344,7 @@ local check_i,check_ready=1,false
 -- Fire input still guards ownership learning. Swap inputs are deliberately
 -- unused: a requested swap is not evidence the game actually switched guns.
 local input_at=nil
+local hand_diag_at=0
 function M.capture_input(now)
   if input_at==now then return end
   input_at=now
@@ -1407,6 +1408,22 @@ function M.update()
           chosen.item.mine=true;add_pose(chosen.t.id,grip)
         end
       else source='ambiguous_hand' end
+      if not chosen and now>=hand_diag_at then
+        hand_diag_at=now+2
+        local details={}
+        for i,e in ipairs(eligible) do
+          if i>8 then break end
+          local w=read_weapon(s,e.id,e.t)
+          if not w.gone then
+            local owner=as_peer(field(s,e.id,e.t,'owner'))
+            details[#details+1]=string.format('%s:%s pose=%s model=%s carry=%s owner_match=%s rounds=%s mags=%s chamber=%s',
+              tostring(e.id),e.t.id,tostring(has_pose(e.t.id,grip)),tostring(evidence[e.t.id]),
+              tostring(field(s,e.id,e.t,'carry')),tostring(owner and owner==as_peer(peer)),
+              tostring(w.rounds),tostring(w.magazines),tostring(w.chamber))
+          end
+        end
+        log('HAND_CANDIDATES pose=%s matches=%s possible=%s %s',tostring(grip),tostring(#matches),tostring(#possible),table.concat(details,'; '))
+      end
     end
     if M.hand_id~=goid or M.hand_source~=source then
       M.hand_id,M.hand_source=goid,source
@@ -1416,7 +1433,19 @@ function M.update()
     else M.wait_reason='pose='..tostring(grip)..' hand='..source..' queued='..tostring(#queue+#queue_2) end
     hand.goid,hand.grip=goid,grip
     local o=goid and objs[goid]
-    shown_now=o and o.t and shown(s,goid,TYPES[o.t],o.prev or read_weapon(s,goid,TYPES[o.t]),o) or nil
+    -- Present a fresh snapshot of the verified object, not an earlier on-body
+    -- sample left behind by a scan/learning transition.
+    local w=o and o.t and read_weapon(s,goid,TYPES[o.t])
+    shown_now=w and not w.gone and shown(s,goid,TYPES[o.t],w,o) or nil
+    if w and not w.gone and TYPES[o.t].id=='b697955d' then
+      local sig=tostring(goid)..':'..tostring(w.rounds)..':'..tostring(w.magazines)..':'..tostring(w.chamber)
+      if sig~=M.apw_sig and now>=(M.apw_log_at or 0) then
+        M.apw_sig=sig;M.apw_log_at=now+.5
+        log('APW_SNAPSHOT object=%s rounds=%s mags=%s chamber=%s reload=%s carry=%s owner_match=%s',
+          tostring(goid),tostring(w.rounds),tostring(w.magazines),tostring(w.chamber),tostring(w.reload_stage),
+          tostring(field(s,goid,TYPES[o.t],'carry')),tostring(as_peer(field(s,goid,TYPES[o.t],'owner'))==as_peer(peer)))
+      end
+    end
     if shown_now and not shown_now.kind then shown_now=nil end
   end
   local d=shown_now

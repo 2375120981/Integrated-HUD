@@ -1,8 +1,9 @@
 local facts=assert(loadstring(WEAPON_DATA_SOURCE))()
 local pistol,laser='1220e497','960653cb'
+local apw,other='b697955d','3ae02f80'
 local rows={}
 for line in facts.data.weapons:gmatch('[^\n]+') do
- if line:sub(1,8)==pistol or line:sub(1,8)==laser then rows[#rows+1]=line end
+ if line:sub(1,8)==pistol or line:sub(1,8)==laser or line:sub(1,8)==apw or line:sub(1,8)==other then rows[#rows+1]=line end
 end
 facts.data.weapons=table.concat(rows,'\n');facts.data.backpacks=''
 facts.seed.poses[laser]=nil;facts.seed.grip[laser]=nil
@@ -13,12 +14,12 @@ local states={
  [20]={rounds=5,magazines=3,chamber=false,fire_mode=2,carry=0,owner='peer',reload_stage=0,options=80,held=false},
  [21]={heat=6.6,magazines=2,fire_mode=1,carry=0,owner='peer',reload_stage=0,options=80,held=false,overheated=false,charging=false}}
 local G,U,N,W={},{},{},{}
-G.objects_owned_by=function()return {1,10,20,21}end
+G.objects_owned_by=function()local ids={1,10};for id in pairs(states)do ids[#ids+1]=id end;return ids end
 G.game_session_host=function()return 'peer'end
 G.game_object_exists=function(_,id)return id==1 or id==10 or states[id]~=nil end
 G.game_object_is_type=function(_,id,t)
  return (id==1 and t==facts.data.player.id) or (id==10 and t==facts.data.avatar.id)
-  or (id==20 and t==pistol) or (id==21 and t==laser)
+  or (id==20 and t==pistol) or (id==21 and t==laser) or (id==22 and t==apw) or (id==23 and t==other)
 end
 G.game_object_field=function(_,id,f)
  if id==1 and f==facts.data.player.avatar then return 10 end
@@ -131,9 +132,29 @@ W.units_by_resource=normal_world_units
 v=step();assert(v and v.id==20,'HUD failed to recover after model ambiguity')
 -- Reused/missing GOIDs cannot be selected solely by a matching model.
 states[20]=nil;v=step();assert(not v or v.id~=20,'destroyed weapon selected through model evidence')
+-- APW-1: a second known type without carry shares pose 52 (e.g. a
+-- lingering learned vehicle gun). Classification must not hide the real gun.
+local actual_apw=true
+states[22]={rounds=6,magazines=4,chamber=true,fire_mode=2,carry=0,owner='peer',reload_stage=0,options=64,held=false}
+states[23]={rounds=900,magazines=0,chamber=true,fire_mode=1,owner='peer',options=80,held=false}
+facts.seed.poses[apw]='52';facts.seed.poses[other]='52'
+facts.bootstrap={[apw]={resource='apw_model',offset=0}}
+U.world_position=function(u)return u=='apw' and (actual_apw and 0 or 1) or 0 end
+W.units_by_resource=function(_,resource)
+ if resource=='4d1c334d294dfa97'then return {'body'}end
+ if resource=='apw_model'then return {'apw'}end
+ return {}
+end
+r=chunk().new(sr,facts,function()end);c.world='apw-ambiguous-pose';selected=52
+v=step(30);assert(v and v.id==22 and v.rounds==6 and v.reserve==4,'APW hidden after same-pose object classification')
+states[22].rounds=2;states[22].magazines=1;v=step()
+assert(v and v.id==22 and v.rounds==2 and v.reserve==1,'APW ammo frozen at spawn values')
+v=step(30);assert(v and v.id==22 and v.rounds==2 and v.reserve==1,'APW disappears after on-body rescans')
+selected=15;actual_apw=false;v=step();assert(not v or v.id~=22,'stowed APW retained when another weapon held')
+selected=52;actual_apw=true;v=step();assert(v and v.id==22 and v.rounds==2,'APW switching back reset ammo to seed')
 return {narrow_pistol_chamber_and_fixed_mode=true,narrow_live_ammo=true,narrow_reload_state=true,
  narrow_las12_heat=true,narrow_vehicle_hide=true,narrow_world_reset=true,
  narrow_las12_cold_hand_model=true,narrow_cache_numeric_strings_preserved=true,
  narrow_hand_poll_without_firing=true,narrow_actual_model_over_swap_intent=true,
  narrow_missing_model_not_stowed=true,narrow_destroyed_hand_object_rejected=true,
- narrow_duplicate_hand_models_rejected=true}
+ narrow_duplicate_hand_models_rejected=true,narrow_apw_shared_pose_model=true,narrow_apw_live_ammo=true}
