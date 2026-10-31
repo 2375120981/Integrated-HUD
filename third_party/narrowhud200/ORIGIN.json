@@ -1,0 +1,8 @@
+{
+  "name": "NarrowHUD",
+  "version": "2.0.0",
+  "author": "luka189",
+  "url": "https://github.com/luka189/NarrowHUD",
+  "source_sha256": "ebbcbfec8024c1d98465e376c5b35eb6021e8a79b3580280f946c3b252943424",
+  "changes": "Data and seven read/learning modules extracted. MDL-owned update/cleanup, local-avatar unit binding, own host and presentation. No Chef runtime, original renderer or unrelated HUD."
+}
