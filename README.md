@@ -1,6 +1,6 @@
 # 集成HUD（Integrated HUD）
 
-当前版本：**0.5.5**，死亡复活崩溃修复验证版，尚待本轮实机复测。使用 **MDL3 加载和启停**，通过游戏 GameSession 接口读取数据；武器部分基于 NarrowHUD 2.0.0 的读取与学习方案，不依赖 HD2 Data Hub 或 Chef Shared Loader。
+当前版本：**0.5.8**，新增武器、FRV、坦克、机甲独立开关，保留0.5.5死亡复活保护修复，尚待本轮实机复测。使用 **MDL3 加载和启停**，通过游戏 GameSession 接口读取数据；武器部分基于 NarrowHUD 2.0.0 的读取与学习方案，不依赖 HD2 Data Hub 或 Chef Shared Loader。
 
 ## 功能
 
@@ -14,7 +14,13 @@
 
 武器状态每 0.1 秒整理一次，热量显示在读数之间更新。武器识别综合姿态、携带状态、开火及切枪输入。未知备用量显示“-”；同型武器或背包首次接触可能需要关联学习。圆弧不显示换弹进度。
 
-## 0.5.5 修复
+## 独立开关
+
+在 MDL 的集成HUD详情／设置中分别调整“武器 HUD”“FRV HUD”“坦克 HUD”“机甲 HUD”，默认均开启。标签不再使用可能缺字的全角斜线。更改立即生效，并由 MDL 保存。设置界面附带提示：局内热切换后，可能需要上下车或武器开火刷新状态。武器开关同时控制步行及车内个人武器圆弧；其余三个开关仅控制对应载具界面，关闭一种不影响其他类型。
+
+旧版“载具／机甲 HUD”关闭设置会迁移为三个开关均关闭。所有载具类型关闭时停止共享载具模块；只关闭部分类型时保留共享识别，以便其他类型仍能正常显示。整个模组停用仍会关闭全部界面。
+
+## 沿用的0.5.5修复
 
 - 每帧核对玩家与当前角色关联；死亡、角色消失或替换时停止姿态读取，并重建武器传感器及单位缓存。
 - 模型位置读取前检查对象归属、角色类型与节点数量；姿态读取重新解析动画变量索引。
@@ -26,7 +32,7 @@
 
 MDL3 作者：M!ni$try0fSc!eиce。请前往 [MDL3 官方发布页](https://ayakamods.com/mods/mdl3-preview-%E9%BA%A6%E5%BD%93%E5%8A%B33-%E9%A2%84%E8%A7%88%E7%89%88%EF%BC%81.5710/) 阅读安装说明及条款并下载依赖。本仓库和构建包不附带 MDL3、HD2 Data Hub 或 Chef 加载器。
 
-关闭游戏，停用旧版集成 HUD 和提供重复武器／载具界面的冲突模组，再用支持 MDL 的管理器导入 `IntegratedHUD-MDL-0.5.5.zip` 并部署。保留 MDL3 启用；其他模组需要 HD2 Data Hub 时可继续保留，它不是本模组的前置。首次部署材质后重启游戏。之后可通过 MDL 启停本模组。
+关闭游戏，停用旧版集成 HUD 和提供重复武器／载具界面的冲突模组，再用支持 MDL 的管理器导入 `IntegratedHUD-MDL-0.5.8.zip` 并部署。保留 MDL3 启用；其他模组需要 HD2 Data Hub 时可继续保留，它不是本模组的前置。首次部署材质后重启游戏。之后可通过 MDL 启停本模组。
 
 本包不覆盖游戏 boot，不调用 FFI，也不需要玩家安装 Python 或外部采样器。
 
@@ -45,7 +51,7 @@ python tools/build.py --game-root "D:\steam\steamapps\common\Helldivers 2"
 
 ## 日志与目录
 
-武器日志：`%APPDATA%/Arrowhead/Helldivers2/IntegratedHUD-MDL-0.5.5.log`。
+武器日志：`%APPDATA%/Arrowhead/Helldivers2/IntegratedHUD-MDL-0.5.8.log`。
 
 载具日志：同目录的 `driver_hud_lua51.log`；学习缓存为 `IntegratedHUD-Narrow200-learned.txt`，不覆盖原 NarrowHUD 缓存。
 

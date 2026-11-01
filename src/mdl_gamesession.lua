@@ -1,7 +1,9 @@
 -- HD2-Addon: mods/integrated_hud/mdl_gamesession/main
--- MDL-managed validation entry. Only HD2Data supplies gameplay state.
+-- MDL-managed lifecycle; GameSession supplies gameplay state.
 local reader
 local vehicles
+local vehicle_views_key=nil
+local active_mod=false
 local next_vehicle_error=0
 local art=require('mods/integrated_hud/mdl_gamesession/font')
 local text_ui=require('mods/integrated_hud/mdl_gamesession/art_ui')
@@ -22,7 +24,7 @@ end
 local function log(s)
  pcall(function()
   local base=os.getenv('APPDATA');if not base then return end
-  local f=io.open(base..'/Arrowhead/Helldivers2/IntegratedHUD-MDL-0.5.5.log','a')
+  local f=io.open(base..'/Arrowhead/Helldivers2/IntegratedHUD-MDL-0.5.8.log','a')
   if f then f:write(string.format('%.3f %s\n',clock,s));f:close()end
  end)
 end
@@ -96,6 +98,7 @@ local function frame(dt)
   local ok,err=pcall(vehicles.update,dt)
   if not ok and clock>=next_vehicle_error then next_vehicle_error=clock+5;log('VEHICLE_ERROR '..tostring(err))end
  end
+ if not reader then return end
  local worlds=call(App.worlds)
  if gui and not live(worlds,world)then gui=nil;world=nil;groups={};next_gui=0 end
  if E.Window and call(E.Window.show_cursor)==true then if gui then clear()end;return end
@@ -126,25 +129,71 @@ local function frame(dt)
   end end
  end)
 end
-local function stop()
+local function stop_weapon()
  dispose()
- if vehicles then call(vehicles.shutdown);vehicles=nil end
  if reader then call(reader.shutdown);reader=nil end
  snapshot={state='DISABLED'}
 end
+local function stop_vehicle()
+ if vehicles then call(vehicles.shutdown);vehicles=nil end
+ vehicle_views_key=nil
+end
+local function sync_settings(ctx)
+ if not active_mod then return end
+ local settings=type(ctx)=='table'and type(ctx.settings)=='table'and ctx.settings or{}
+ if settings.weapon_hud~=false then
+  if not reader then
+   reader=require('mods/integrated_hud/mdl_gamesession/reader').new(E,log)
+   reader.reset()
+  end
+ elseif reader or gui then stop_weapon()end
+ local frv,tank,mech=settings.frv_hud~=false,settings.tank_hud~=false,settings.mech_hud~=false
+ if frv or tank or mech then
+  if not vehicles then
+   vehicles=require('mods/integrated_hud/driver_reference/driver_core')()
+   assert(vehicles and type(vehicles.update)=='function','vehicle module unavailable')
+  end
+  local key=tostring(frv)..'/'..tostring(tank)..'/'..tostring(mech)
+  if key~=vehicle_views_key then
+   vehicles.set_views(frv,tank,mech);vehicle_views_key=key
+  end
+ else stop_vehicle()end
+end
+local function stop()
+ active_mod=false;stop_weapon();stop_vehicle()
+end
 return {
- name='集成HUD',version='0.5.5',author='2375120981',
+ name='集成HUD',version='0.5.8',author='2375120981',
  description='MDL加载；GameSession读取武器、背包和载具；无需HD2Data或Chef。',
- on_enable=function()
+ options={
+  {key='weapon_hud',type='toggle',label='武器 HUD',default=true},
+  {key='frv_hud',type='toggle',label='FRV HUD',default=true},
+  {key='tank_hud',type='toggle',label='坦克 HUD',default=true},
+  {key='mech_hud',type='toggle',label='机甲 HUD',default=true},
+  {key='hot_toggle_note_1',type='text',label='局内热切换后可能需要',default=''},
+  {key='hot_toggle_note_2',type='text',label='上下车或武器开火刷新状态',default=''}
+ },
+ on_enable=function(ctx)
   stop()
-  reader=require('mods/integrated_hud/mdl_gamesession/reader').new(E,log)
-  reader.reset()
-  vehicles=require('mods/integrated_hud/driver_reference/driver_core')()
-  assert(vehicles and type(vehicles.update)=='function','vehicle module unavailable')
-  log('START MDL managed; GameSession; NarrowHUD 2.0.0 sensor; vehicle+mech enabled')
+  local settings=ctx and ctx.settings
+  if type(settings)=='table'and settings.vehicle_hud~=nil then
+   -- Migrate the former combined toggle once, including a saved off state.
+   if settings.vehicle_hud==false then
+    settings.frv_hud=false;settings.tank_hud=false;settings.mech_hud=false
+   end
+   settings.vehicle_hud=nil
+  end
+  active_mod=true;sync_settings(ctx)
+  log('START MDL managed; GameSession; independent HUD settings')
  end,
- on_update=function(_,dt)
-  if not reader then return end
+ on_setting=function(ctx,key,value)
+  if key=='weapon_hud'or key=='frv_hud'or key=='tank_hud'or key=='mech_hud'then
+   sync_settings(ctx);log('SETTING '..key..'='..tostring(value))
+  end
+ end,
+ on_update=function(ctx,dt)
+  if not active_mod then return end
+  sync_settings(ctx)
   local ok,err=pcall(frame,dt)
   if not ok then dispose();if clock>=next_error then next_error=clock+5;log('ERROR '..tostring(err))end end
  end,

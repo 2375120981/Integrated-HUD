@@ -92,11 +92,24 @@ env=setmetatable({stingray=sr,os={getenv=function()return nil end},io={},update=
 env._G=env
 local f=assert(loadstring(CORE_SOURCE,'@original_driver_core'));setfenv(f,env)
 local result=f();assert(result.installed and env.__DRIVER_HUD_INSTALLED)
+local function check_view_switch(kind)
+ if not result.set_views then return end
+ result.set_views(kind~='FRV',kind~='TANK',kind~='MECH')
+ for _,pool in pairs(pools)do assert(next(pool)==nil,'view switch did not clear immediately: '..kind)end
+ for _=1,2 do env.update(.1)end
+ for _,pool in pairs(pools)do assert(next(pool)==nil,'disabled view was redrawn: '..kind)end
+ result.set_views(true,true,true)
+ for _=1,2 do env.update(.1)end
+ local active=0;for _,pool in pairs(pools)do for _ in pairs(pool)do active=active+1 end end
+ assert(active>0,'view did not recover: '..kind)
+ measurements['independent_'..kind..'_switch']=true
+end
 for _=1,30 do env.update(.1)end
 motion=false;fields[100][15]=119
 for _=1,30 do env.update(.1)end
 assert(gui_world==world_overlay,'original non-main-world GUI selection not exercised')
 assert(created>0,'original FRV renderer did not create geometry')
+check_view_switch('FRV')
 local before=created
 for _=1,20 do env.update(.1)end
 assert(created==before,'unchanged original FRV unexpectedly rebuilt')
@@ -139,6 +152,7 @@ if STYLE_SOURCE then
   if tri[4][2]==255 and tri[4][3]==145 and tri[4][4]==48 then self_color=true end
  end end
  assert(active>100 and self_color,'tank shape or local seat absent')
+ check_view_switch('TANK')
  local weapon_before=(per_id[298]or 0)+(per_id[299]or 0)
  before=created;for _=1,10 do env.update(.1)end;assert(created==before,'unchanged styled tank rebuilt')
  measurements.metric_old_tank_steady_weapon_batches=(per_id[298]or 0)+(per_id[299]or 0)-weapon_before
@@ -198,6 +212,7 @@ if MECH_BINDING_SOURCE then
   for i=1,3 do assert(tri[i][1]>1270 and tri[i][1]<1470 and tri[i][3]>=0 and tri[i][3]<210,'mech outside shared vehicle anchor')end
  end end
  assert(active>100 and active<500,'whole mech did not render or unexpected module geometry')
+ check_view_switch('MECH')
  local owned_before,field_before=native.owned,native.field
  before=created;for _=1,10 do env.update(.1)end;assert(created==before,'stable whole mech rebuilt')
  measurements.metric_mech_steady_owned_calls=native.owned-owned_before

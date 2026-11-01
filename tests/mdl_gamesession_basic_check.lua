@@ -40,6 +40,7 @@ assert(N.pack_ammo(1)==7,'separate backpack remaining not read')
 -- Real managed entry with a stub reader: lifecycle and independent GUI ownership.
 local current={state='READY',entity=100,kind='ammo',ratio=.5,rounds=6,mags=3,mode='APHET',rpm='600 RPM'}
 local vehicle_updates,stops,reads=0,0,0
+local views=nil
 local pool,serial={},0;local cursor=false
 local E={Application={},World={},Gui={},Window={}}
 E.Application.worlds=function()return {'world'}end;E.Application.main_world=function()return 'world'end
@@ -56,7 +57,7 @@ env.require=function(name)
  if name==BASE..'reader'then return {new=function()return {
   reset=function()end,read=function()reads=reads+1;return current end,shutdown=function()stops=stops+1 end}end}end
  if name=='mods/integrated_hud/driver_reference/driver_core'then return function()return {
-  update=function()vehicle_updates=vehicle_updates+1 end,shutdown=function()stops=stops+1 end}end end
+  set_views=function(f,t,m)views={f,t,m}end,update=function()vehicle_updates=vehicle_updates+1 end,shutdown=function()stops=stops+1 end}end end
  if modules[name]then return modules[name]end
  local f=assert(loadstring(SOURCES[name]));setfenv(f,env);modules[name]=f();return modules[name]
 end
@@ -71,7 +72,44 @@ cursor=true;local n=reads;addon.on_update(nil,.1);assert(next(pool)==nil and rea
 cursor=false;addon.on_disable();assert(next(pool)==nil and stops==2)
 addon.on_enable();addon.on_update(nil,.1);assert(next(pool)~=nil)
 addon.on_disable();assert(next(pool)==nil and stops==4)
+-- Four MDL options with plain labels; vehicle filtering shares one reader.
+local toggle_count=0
+for _,option in ipairs(addon.options)do
+ if option.type=='toggle'then toggle_count=toggle_count+1;assert(option.default==true)end
+ assert(not option.label:find('／',1,true))
+end
+assert(toggle_count==4)
+local ctx={settings={weapon_hud=false,frv_hud=true,tank_hud=true,mech_hud=true}}
+local read_before,vehicle_before=reads,vehicle_updates
+addon.on_enable(ctx);addon.on_update(ctx,.1)
+assert(next(pool)==nil and reads==read_before and vehicle_updates==vehicle_before+1,'vehicle-only option failed')
+ctx.settings.frv_hud=false;addon.on_setting(ctx,'frv_hud',false)
+assert(views[1]==false and views[2]and views[3],'FRV switch changed another type')
+ctx.settings.tank_hud=false;addon.on_setting(ctx,'tank_hud',false)
+assert(views[1]==false and views[2]==false and views[3],'tank switch changed mech')
+ctx.settings.mech_hud=false;addon.on_setting(ctx,'mech_hud',false)
+vehicle_before=vehicle_updates;addon.on_update(ctx,.1)
+assert(reads==read_before and vehicle_updates==vehicle_before,'all disabled still polled')
+ctx.settings.weapon_hud=true;addon.on_setting(ctx,'weapon_hud',true);addon.on_update(ctx,.1)
+assert(next(pool)~=nil and reads>read_before and vehicle_updates==vehicle_before,'weapon-only option failed')
+ctx.settings.mech_hud=true;addon.on_setting(ctx,'mech_hud',true);addon.on_update(ctx,.1)
+assert(views[1]==false and views[2]==false and views[3],'mech-only settings failed')
+assert(next(pool)~=nil and vehicle_updates==vehicle_before+1,'vehicle re-enable failed')
+ctx.settings.weapon_hud=false;addon.on_setting(ctx,'weapon_hud',false)
+assert(next(pool)==nil,'weapon setting did not immediately clear GUI')
+read_before=reads;addon.on_update(ctx,.1);assert(reads==read_before,'disabled weapon reader polled')
+addon.on_disable();assert(next(pool)==nil)
+addon.on_enable(ctx);addon.on_update(ctx,.1)
+assert(next(pool)==nil and reads==read_before,'saved weapon-off setting ignored on enable')
+addon.on_disable()
+local legacy={settings={weapon_hud=false,vehicle_hud=false,frv_hud=true,tank_hud=true,mech_hud=true}}
+vehicle_before=vehicle_updates;addon.on_enable(legacy);addon.on_update(legacy,.1)
+assert(legacy.settings.vehicle_hud==nil and legacy.settings.frv_hud==false
+ and legacy.settings.tank_hud==false and legacy.settings.mech_hud==false,'combined toggle migration failed')
+assert(vehicle_updates==vehicle_before and reads==read_before,'legacy off choice ignored')
+addon.on_disable()
 assert(env.update==nil and env.__DRIVER_HUD_INSTALLED==nil,'managed entry installed global hooks')
 return {narrow200_normalisation=true,function_mode=true,adjustable_rpm_only=true,
  backpack_remaining=true,reload_hide=true,cached_gui=true,managed_enable_disable=true,
- independent_vehicle_dispatch=true,no_global_hooks=true}
+ independent_vehicle_dispatch=true,no_global_hooks=true,independent_hud_options=true,
+ option_cleanup_immediate=true,disabled_reader_stops=true,saved_options_respected=true,four_hud_options=true,legacy_vehicle_option_migrated=true}

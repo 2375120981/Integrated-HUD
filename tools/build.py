@@ -35,13 +35,13 @@ def vehicle_source():
     core = replace(core, 'if not stable or not cached or M.clock>=cached.until_time then',
                    'if not cached or M.clock>=cached.until_time then')
     extensions = ['driver_own_style', 'driver_seat_acquisition', 'driver_tank_acquisition',
-                  'driver_mech_hud', 'driver_performance']
+                  'driver_mech_hud', 'driver_performance', 'driver_visibility']
     core = replace(core, '-- Diagnostics attachment API 1.',
                    '\n'.join(read('src/' + n + '.lua') for n in extensions) + '\n-- Diagnostics attachment API 1.')
     # MDL owns dispatch. Do not install DRIVER globals, extension registries,
     # global hooks, or singleton flags; each enable receives a fresh factory.
     core = core[:core.index("local old=rawget(_G,'update');")]
-    core += '''return {installed=true,update=update,shutdown=function()
+    core += '''return {installed=true,update=update,set_views=M.integrated_set_views,shutdown=function()
  diagnostic_shutdown=true;detach_diagnostics('shutdown')
  surface_reset(call(App.worlds)or{});full_reset()
 end}
@@ -125,7 +125,7 @@ def main():
     assert resource_hash('boot') not in [struct.unpack_from('<Q', patch, 104 + i * 80)[0] for i in range(count)]
     manifest = {'Version': 1, 'Guid': '61710665-8698-4f23-bff7-00fbd715b2d8',
                 'Name': '集成HUD MDL ' + VERSION,
-                'Description': 'MDL加载及启停；GameSession读取武器弹药/热量/功能模式/射速/背包供弹；恢复FRV、坦克及机甲HUD。采用Monocraft及自带图标；换弹隐藏武器HUD。仅依赖MDL3，无需Chef或HD2Data。',
+                'Description': 'MDL加载及启停，支持武器、FRV、坦克和机甲HUD独立实时开关；GameSession读取武器弹药/热量/功能模式/射速/背包供弹；恢复FRV、坦克及机甲HUD。采用Monocraft及自带图标；换弹隐藏武器HUD。仅依赖MDL3，无需Chef或HD2Data。',
                 'Options': [{'Name': '集成HUD', 'Description': '停用旧集成HUD及冲突HUD后启用并部署。', 'Include': ['HUD']}]}
     files = {'manifest.json': json.dumps(manifest, ensure_ascii=False, indent=2).encode(),
              'HUD/9ba626afa44a3aa3.patch_0': patch,
