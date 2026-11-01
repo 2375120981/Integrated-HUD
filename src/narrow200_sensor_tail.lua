@@ -2,6 +2,7 @@
 -- Integrated HUD frame coordinator. NarrowHUD's picker/normaliser remain above.
 local next_scan,next_read,shown,world_seen=0,0,nil,nil
 local check_i,checked=1,false
+local avatar_seen=nil
 if chef.weapon_menu_down then N.keys.weapon_menu={down=chef.weapon_menu_down}end
 local function wipe(t)for k in pairs(t)do t[k]=nil end end
 local function reset_world()
@@ -10,8 +11,10 @@ local function reset_world()
  wipe(N.hand);N.swap.used,N.swap.from=true,nil
  N.seat.goid,N.seat.gun,N.seat.pose_since=nil,nil,nil
  N.pack_prev=nil;shown=nil;next_scan=0;next_read=0
+ avatar_seen=nil
 end
-function M.avatar()return N.me.avatar end
+function M.avatar()return avatar_seen end
+function M.player()return N.me.player end
 function M.inspect()return N end -- Basic offline verification only.
 function M.update()
  local now=chef.time();N.now=now;N.frame=N.frame+1
@@ -38,17 +41,32 @@ function M.update()
  N.blocked.since=N.blocked.since or now
  N.classify(s)
  if now>=next_scan then next_scan=now+1;N.scan(s,peer)end
+ -- A life can change without a new world. Resolve the player->avatar link
+ -- before any pose, unit position, weapon learning or retained heat work.
+ local p=N.me.player
+ local a=nil
+ if p~=nil and N.call('player.exists','GameSession.game_object_exists',s,p)==true
+  and N.call('player.type','GameSession.game_object_is_type',s,p,N.TYPES[1].name)==true then
+  local id=N.call('player.avatar','GameSession.game_object_field',s,p,DATA.player.avatar)
+  if type(id)=='number'and id>0 and id<N.NO_OBJECT and id==math.floor(id)
+   and N.call('avatar.exists','GameSession.game_object_exists',s,id)==true
+   and N.call('avatar.type','GameSession.game_object_is_type',s,id,N.TYPES[2].name)==true then
+   local where=N.call('avatar.where','GameSession.game_object_field',s,id,'gls4w9b')
+   local state=N.call('avatar.state','GameSession.game_object_field',s,id,'state')
+   if where==100 and state==0 then a=id end
+  end
+ end
+ if avatar_seen~=nil and a~=avatar_seen then
+  avatar_seen=nil;shown=nil
+  -- The host replaces this sensor, including private animation/learning caches.
+  return nil,'AVATAR CHANGE'
+ end
+ avatar_seen=a;N.me.avatar=a
+ if not a then shown=nil;return nil,'NO AVATAR'end
  N.read_fire_button(now);N.read_swap(now)
  if now>=next_read then
   next_read=now+.1
-  if N.me.avatar and N.alive(s,N.me.avatar,N.TYPES[2])then
-   -- Gate presentation after scanning, so a dead old avatar cannot prevent
-   -- discovering its replacement. Seated motion state is deliberately ignored.
-   local where=N.call('avatar.where','GameSession.game_object_field',s,N.me.avatar,'gls4w9b')
-   local state=N.call('avatar.state','GameSession.game_object_field',s,N.me.avatar,'state')
-   if(where~=nil and where~=100)or(state~=nil and state~=0)then shown=nil;return nil,'NO AVATAR'end
-   N.read_av_refs(s)
-  end
+  N.read_av_refs(s)
   local grip=N.hand_pose(s);N.watch_fire(s,grip)
   local goid=N.pick(s,grip,now)
   local hand=N.hand;local old=hand.goid and N.objs[hand.goid]

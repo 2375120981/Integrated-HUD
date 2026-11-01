@@ -94,6 +94,10 @@ def main():
             assert dep in sources, (name, dep)
     lua.globals().SOURCES = lua.table_from(sources)
     checks = dict(lua.execute(read('tests/mdl_gamesession_basic_check.lua')).items())
+    respawn_test = LuaRuntime(unpack_returned_tuples=True)
+    respawn_test.globals().SOURCES = respawn_test.table_from(sources)
+    checks.update({'respawn_' + k: v for k, v in dict(respawn_test.execute(
+        read('tests/narrow_respawn_basic_check.lua')).items()).items()})
     # Reuse the existing finite seat/HP/exit workflow with managed dispatch.
     vehicle_test = LuaRuntime(unpack_returned_tuples=True)
     managed = sources[PREFIX + 'driver_core']

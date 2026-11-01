@@ -1,6 +1,6 @@
 # 集成HUD（Integrated HUD）
 
-当前版本：**0.5.4**，用户已确认实机可用。使用 **MDL3 加载和启停**，通过游戏 GameSession 接口读取数据；武器部分基于 NarrowHUD 2.0.0 的读取与学习方案，不依赖 HD2 Data Hub 或 Chef Shared Loader。
+当前版本：**0.5.5**，死亡复活崩溃修复验证版，尚待本轮实机复测。使用 **MDL3 加载和启停**，通过游戏 GameSession 接口读取数据；武器部分基于 NarrowHUD 2.0.0 的读取与学习方案，不依赖 HD2 Data Hub 或 Chef Shared Loader。
 
 ## 功能
 
@@ -14,13 +14,19 @@
 
 武器状态每 0.1 秒整理一次，热量显示在读数之间更新。武器识别综合姿态、携带状态、开火及切枪输入。未知备用量显示“-”；同型武器或背包首次接触可能需要关联学习。圆弧不显示换弹进度。
 
+## 0.5.5 修复
+
+- 每帧核对玩家与当前角色关联；死亡、角色消失或替换时停止姿态读取，并重建武器传感器及单位缓存。
+- 模型位置读取前检查对象归属、角色类型与节点数量；姿态读取重新解析动画变量索引。
+- 保留车内武器显示、现有载具/机甲HUD及MDL启停行为。本次针对已发现的生命周期保护缺口修复，尚不能在实测前认定崩溃已彻底消除。
+
 ## 前置与安装
 
 需要 **MDL3**，适配目标为 `3.0.0-dev.21 preview`、Steam Build **26251122**。
 
 MDL3 作者：M!ni$try0fSc!eиce。请前往 [MDL3 官方发布页](https://ayakamods.com/mods/mdl3-preview-%E9%BA%A6%E5%BD%93%E5%8A%B33-%E9%A2%84%E8%A7%88%E7%89%88%EF%BC%81.5710/) 阅读安装说明及条款并下载依赖。本仓库和构建包不附带 MDL3、HD2 Data Hub 或 Chef 加载器。
 
-关闭游戏，停用旧版集成 HUD 和提供重复武器／载具界面的冲突模组，再用支持 MDL 的管理器导入 `IntegratedHUD-MDL-0.5.4.zip` 并部署。保留 MDL3 启用；其他模组需要 HD2 Data Hub 时可继续保留，它不是本模组的前置。首次部署材质后重启游戏。之后可通过 MDL 启停本模组。
+关闭游戏，停用旧版集成 HUD 和提供重复武器／载具界面的冲突模组，再用支持 MDL 的管理器导入 `IntegratedHUD-MDL-0.5.5.zip` 并部署。保留 MDL3 启用；其他模组需要 HD2 Data Hub 时可继续保留，它不是本模组的前置。首次部署材质后重启游戏。之后可通过 MDL 启停本模组。
 
 本包不覆盖游戏 boot，不调用 FFI，也不需要玩家安装 Python 或外部采样器。
 
@@ -33,13 +39,13 @@ python -m pip install -r requirements.txt
 python tools/build.py --game-root "D:\steam\steamapps\common\Helldivers 2"
 ```
 
-默认输出到 `dist/`，可使用 `--output-dir` 指定其他目录。构建器核对游戏版本及 PE 指纹，进行 Lua 5.1 编译、有限武器／座位／血量／启停模拟和包体完整性检查；不自动部署，不生成 sha256 侧车文件。`VERIFICATION.json` 中的哈希用于记录构建输入；`runtime_verified=false` 表示构建器自身未运行游戏，不否定用户此前对 0.5.4 的实机确认。
+默认输出到 `dist/`，可使用 `--output-dir` 指定其他目录。构建器核对游戏版本及 PE 指纹，进行 Lua 5.1 编译、有限武器／座位／血量／启停模拟和包体完整性检查；不自动部署，不生成 sha256 侧车文件。`VERIFICATION.json` 中的哈希用于记录构建输入；`runtime_verified=false` 表示构建器自身未运行游戏，本轮修复仍需游戏内验证。
 
 仓库已包含生成后的武器传感器与字体／图标几何，普通构建不需要 NarrowHUD 原始压缩包。重新导入上游源码时，使用合法取得的 NarrowHUD 2.0.0 包运行 `tools/import_narrowhud200.py <压缩包路径>`。重新生成美术数据时，额外安装 `fonttools`、`Pillow` 并运行 `tools/bake_weapon_art.py`。
 
 ## 日志与目录
 
-武器日志：`%APPDATA%/Arrowhead/Helldivers2/IntegratedHUD-MDL-0.5.4.log`。
+武器日志：`%APPDATA%/Arrowhead/Helldivers2/IntegratedHUD-MDL-0.5.5.log`。
 
 载具日志：同目录的 `driver_hud_lua51.log`；学习缓存为 `IntegratedHUD-Narrow200-learned.txt`，不覆盖原 NarrowHUD 缓存。
 

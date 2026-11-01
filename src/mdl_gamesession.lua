@@ -22,7 +22,7 @@ end
 local function log(s)
  pcall(function()
   local base=os.getenv('APPDATA');if not base then return end
-  local f=io.open(base..'/Arrowhead/Helldivers2/IntegratedHUD-MDL-0.5.4.log','a')
+  local f=io.open(base..'/Arrowhead/Helldivers2/IntegratedHUD-MDL-0.5.5.log','a')
   if f then f:write(string.format('%.3f %s\n',clock,s));f:close()end
  end)
 end
@@ -133,7 +133,7 @@ local function stop()
  snapshot={state='DISABLED'}
 end
 return {
- name='集成HUD',version='0.5.4',author='2375120981',
+ name='集成HUD',version='0.5.5',author='2375120981',
  description='MDL加载；GameSession读取武器、背包和载具；无需HD2Data或Chef。',
  on_enable=function()
   stop()

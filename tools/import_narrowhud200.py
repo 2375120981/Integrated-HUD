@@ -27,6 +27,10 @@ def main():
             module = module.replace('local function my_unit(s) return nearest_unit() end',
                                     'local function my_unit(s) return chef.player_unit() end')
             assert 'return chef.player_unit()' in module
+            assert module.count('local idx = grip_index[u]') == 1
+            # Unit handles can be recycled within a mission. Re-resolve the
+            # animation variable instead of trusting an index from an old life.
+            module = module.replace('local idx = grip_index[u]', 'local idx = nil')
         modules.append(module)
     head = ('-- Based on NarrowHUD 2.0.0 by luka189; see third_party/narrowhud200/LICENSE.txt.\n'
             '-- Generated reading modules only; MDL host, no Chef loader or original drawing.\n'
@@ -44,7 +48,7 @@ def main():
     (out / 'ORIGIN.json').write_text(json.dumps({
         'name': 'NarrowHUD', 'version': '2.0.0', 'author': 'luka189',
         'url': 'https://github.com/luka189/NarrowHUD', 'source_sha256': hashlib.sha256(raw).hexdigest(),
-        'changes': 'Data and seven read/learning modules extracted. MDL-owned update/cleanup, local-avatar unit binding, own host and presentation. No Chef runtime, original renderer or unrelated HUD.'
+        'changes': 'Data and seven read/learning modules extracted. MDL-owned lifecycle, validated player-avatar binding, respawn cache reset and fresh animation indexes; own host and presentation. No Chef runtime, original renderer or unrelated HUD.'
     }, indent=2) + '\n', encoding='utf-8')
 
 
