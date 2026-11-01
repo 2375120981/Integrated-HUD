@@ -49,9 +49,29 @@ E.World.create_screen_gui=function()return 'gui'end
 E.World.destroy_gui=function()assert(next(pool)==nil)end
 E.Window.show_cursor=function()return cursor end
 E.Vector2=function(...)return {...}end;E.Vector3=E.Vector2;E.Color=E.Vector2
-E.Gui.triangle=function()serial=serial+1;pool[serial]=true;return serial end
+E.Gui.triangle=function(_,a,b,c)serial=serial+1;pool[serial]={a,b,c};return serial end
 E.Gui.destroy_triangle=function(_,id)assert(pool[id]);pool[id]=nil end
 local env=setmetatable({stingray=E,os={getenv=function()return nil end}},{__index=_G});env._G=env
+local scale_value,scale_spec=100,nil
+env.ModOptionsMenu={register_option=function(id,spec)
+ assert(id=='integrated_hud.weapon_scale'and spec.type=='slider')
+ assert(spec.min==50 and spec.max==150 and spec.step==5 and spec.default==100)
+ scale_spec=spec;return true
+end,get=function(id)assert(id=='integrated_hud.weapon_scale');return scale_value end}
+local function geometry()
+ local ids,out={},{}
+ for id in pairs(pool)do ids[#ids+1]=id end;table.sort(ids)
+ for _,id in ipairs(ids)do out[#out+1]=pool[id]end
+ return out
+end
+local function scaled(base,factor)
+ local now=geometry();assert(#now==#base,'scale changed primitive count')
+ for i,tri in ipairs(base)do for j,p in ipairs(tri)do
+  local q=now[i][j]
+  assert(math.abs(q[1]-(960+(p[1]-960)*factor))<1e-6,'horizontal anchor/layout changed')
+  assert(math.abs(q[3]-(540+(p[3]-540)*factor))<1e-6,'vertical anchor/layout changed')
+ end end
+end
 local modules={}
 env.require=function(name)
  if name==BASE..'reader'then return {new=function()return {
@@ -71,14 +91,25 @@ for _,mode in ipairs({'AUTO','VOLLEY','TOTAL'})do
  assert(serial>previous,'VG-70 icon did not refresh')
  previous=serial;addon.on_update(nil,.1);assert(serial==previous,'stable VG-70 icon recreated')
 end
+assert(scale_spec,'MDL slider not registered')
+local baseline=geometry();local stop_before=stops
+for _,percent in ipairs({50,150,100})do
+ scale_value=percent;addon.on_update(nil,.1);scaled(baseline,percent/100)
+ local previous=serial;addon.on_update(nil,.1)
+ assert(serial==previous,'unchanged scale rebuilt geometry')
+ assert(stops==stop_before and views[1]and views[2]and views[3],'weapon scale reset vehicle module')
+end
 -- A seated snapshot has the same path: no motion gate in the entry.
 current.mags=2;addon.on_update(nil,.1);assert(serial>before)
 current.state='RELOADING';addon.on_update(nil,.1);assert(next(pool)==nil,'reload not hidden')
 current.state='READY';addon.on_update(nil,.1);assert(next(pool)~=nil)
+local ready_geometry=geometry()
 cursor=true;local n=reads;addon.on_update(nil,.1);assert(next(pool)==nil and reads==n)
 cursor=false;addon.on_disable();assert(next(pool)==nil and stops==2)
-addon.on_enable();addon.on_update(nil,.1);assert(next(pool)~=nil)
+scale_value=125
+addon.on_enable();addon.on_update(nil,.1);assert(next(pool)~=nil);scaled(ready_geometry,1.25)
 addon.on_disable();assert(next(pool)==nil and stops==4)
+scale_value=100
 -- Four MDL options with plain labels; vehicle filtering shares one reader.
 local toggle_count=0
 for _,option in ipairs(addon.options)do
@@ -115,8 +146,19 @@ assert(legacy.settings.vehicle_hud==nil and legacy.settings.frv_hud==false
  and legacy.settings.tank_hud==false and legacy.settings.mech_hud==false,'combined toggle migration failed')
 assert(vehicle_updates==vehicle_before and reads==read_before,'legacy off choice ignored')
 addon.on_disable()
+-- If MDL's optional slider provider is disabled, retain a bounded numeric control.
+env.ModOptionsMenu=nil
+local fallback={settings={weapon_hud=true,frv_hud=false,tank_hud=false,mech_hud=false,weapon_scale=150}}
+addon.on_enable(fallback);addon.on_update(fallback,.1);scaled(ready_geometry,1.5)
+local numeric=false
+for _,option in ipairs(addon.options)do if option.key=='weapon_scale'then numeric=option.type=='number'end end
+assert(numeric,'missing numeric fallback')
+fallback.settings.weapon_scale=math.huge;addon.on_setting(fallback,'weapon_scale',math.huge)
+addon.on_update(fallback,.1);scaled(ready_geometry,1)
+addon.on_disable()
 assert(env.update==nil and env.__DRIVER_HUD_INSTALLED==nil,'managed entry installed global hooks')
 return {narrow200_normalisation=true,function_mode=true,adjustable_rpm_only=true,vg70_icons=true,
+ weapon_scale_slider=true,weapon_scale_anchor=true,weapon_scale_persisted=true,weapon_scale_fallback=true,
  backpack_remaining=true,reload_hide=true,cached_gui=true,managed_enable_disable=true,
  independent_vehicle_dispatch=true,no_global_hooks=true,independent_hud_options=true,
  option_cleanup_immediate=true,disabled_reader_stops=true,saved_options_respected=true,four_hud_options=true,legacy_vehicle_option_migrated=true}

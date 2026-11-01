@@ -1,0 +1,87 @@
+{
+  "build": "26251122",
+  "size": 47259444,
+  "chunk": 65536,
+  "paths": [
+    "data/game/generated_entities.dl_bin",
+    "../data/game/generated_entities.dl_bin"
+  ],
+  "before": {
+    "adler": 725361977,
+    "roll": 197243142
+  },
+  "after": {
+    "adler": 3835110676,
+    "roll": 1332912769
+  },
+  "delta": [
+    {
+      "at": 32,
+      "before": "757549bd7a2d0d969026984fc68b0fe5",
+      "after": "94caed7120d279fe22cf0d1bec1e1d3b"
+    },
+    {
+      "at": 26837960,
+      "before": "b2",
+      "after": "b1"
+    },
+    {
+      "at": 26923520,
+      "before": "1c",
+      "after": "1f"
+    },
+    {
+      "at": 26924760,
+      "before": "fe",
+      "after": "fd"
+    },
+    {
+      "at": 47227701,
+      "before": "fd",
+      "after": "77"
+    },
+    {
+      "at": 47258877,
+      "before": "83b472b9ac5f6d",
+      "after": "c9e4e3219a6308"
+    }
+  ],
+  "anchors": [
+    {
+      "at": 8192,
+      "hex": "29e532374b7ba9abcbf23ec94118102a"
+    },
+    {
+      "at": 65536,
+      "hex": "e1dd332673dd5acbf677d54720cdd46a"
+    },
+    {
+      "at": 1048576,
+      "hex": "aba00cdfbb95ee943a77b292bd00f6d2"
+    },
+    {
+      "at": 4000000,
+      "hex": "21761315a3dae45c70e32792d06a513f"
+    },
+    {
+      "at": 12500000,
+      "hex": "7570ec8c3456ed15995cc36e51f1ec41"
+    },
+    {
+      "at": 25000000,
+      "hex": "6d9362aae7f76ab20db01590f037fbf1"
+    },
+    {
+      "at": 35000000,
+      "hex": "f3f560001e5afb4d292a0d9ba0790580"
+    },
+    {
+      "at": 46000000,
+      "hex": "aaa980c15028655e5f94051ede51375c"
+    }
+  ],
+  "original_sha256": "4121f332a6d163074521073c250d49514d5b7d20593ba34a0d1f808521370683",
+  "patched_sha256": "8b04109c742ac4332af7ecd80ba7cdbcb4eb82d77338021765b28664cd660851",
+  "visual_verified": true,
+  "scope": "APW-1, R-40, AMW-20 native crosshair types only; verified in game by user"
+}

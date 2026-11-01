@@ -5,6 +5,15 @@ local vehicles
 local vehicle_views_key=nil
 local active_mod=false
 local next_vehicle_error=0
+local weapon_scale=1
+local scale_api=nil
+local anchor_x,anchor_y=0,0
+local definition
+local SCALE_ID='integrated_hud.weapon_scale'
+local function scale_percent(value)
+ if type(value)~='number'or value~=value or math.abs(value)==math.huge then return 100 end
+ return math.max(50,math.min(150,math.floor(value/5+.5)*5))
+end
 local art=require('mods/integrated_hud/mdl_gamesession/font')
 local text_ui=require('mods/integrated_hud/mdl_gamesession/art_ui')
 local cfg=require('mods/integrated_hud/mdl_gamesession/layout')
@@ -24,7 +33,7 @@ end
 local function log(s)
  pcall(function()
   local base=os.getenv('APPDATA');if not base then return end
-  local f=io.open(base..'/Arrowhead/Helldivers2/IntegratedHUD-MDL-0.5.9.log','a')
+  local f=io.open(base..'/Arrowhead/Helldivers2/IntegratedHUD-MDL-0.6.0.log','a')
   if f then f:write(string.format('%.3f %s\n',clock,s));f:close()end
  end)
 end
@@ -56,6 +65,11 @@ local function surface(worlds)
  return live(worlds,main)and attempt(main)or false
 end
 local function triangle(x1,y1,x2,y2,x3,y3,a,c)
+ if weapon_scale~=1 then
+  x1,y1=anchor_x+(x1-anchor_x)*weapon_scale,anchor_y+(y1-anchor_y)*weapon_scale
+  x2,y2=anchor_x+(x2-anchor_x)*weapon_scale,anchor_y+(y2-anchor_y)*weapon_scale
+  x3,y3=anchor_x+(x3-anchor_x)*weapon_scale,anchor_y+(y3-anchor_y)*weapon_scale
+ end
  local uv=E.Vector2(.5,0)
  local id=Q.triangle(gui,E.Vector3(x1,0,y1),E.Vector3(x2,0,y2),E.Vector3(x3,0,y3),3,
   E.Color(math.floor(a*255),c[1],c[2],c[3]),'mods/driver_hud/solid',uv,uv,uv)
@@ -107,7 +121,8 @@ local function frame(dt)
  local width,height=call(App.back_buffer_size)
  if type(width)~='number'or type(height)~='number'then return end
  local s=math.min(width/1920,height/1080);local cx,cy=width/2,height/2
- local v=snapshot;local base=width..'/'..height..'/'
+ anchor_x,anchor_y=cx,cy
+ local v=snapshot;local base=width..'/'..height..'/'..weapon_scale..'/'
  local key=table.concat({v.state,id(v.entity),v.kind or'',id(v.rounds),id(v.mags),id(v.heat_percent),
   tostring(v.overheated),tostring(v.ratio and math.floor(v.ratio*200+.5)),v.mode or'',v.rpm or'',v.safety or''},'/')
  if key~=last_log and clock>=next_log then last_log=key;next_log=clock+.5;log('WEAPON '..key)end
@@ -141,6 +156,8 @@ end
 local function sync_settings(ctx)
  if not active_mod then return end
  local settings=type(ctx)=='table'and type(ctx.settings)=='table'and ctx.settings or{}
+ local percent=scale_api and call(scale_api.get,SCALE_ID)or settings.weapon_scale
+ weapon_scale=scale_percent(percent)/100
  if settings.weapon_hud~=false then
   if not reader then
    reader=require('mods/integrated_hud/mdl_gamesession/reader').new(E,log)
@@ -159,11 +176,34 @@ local function sync_settings(ctx)
   end
  else stop_vehicle()end
 end
+local function register_scale()
+ -- MDL's built-in Mod Options Menu API provides an actual draggable slider.
+ -- Poll the saved value; avoid retaining on_change callbacks after disable.
+ local api=rawget(_G,'ModOptionsMenu')
+ scale_api=nil
+ if type(api)=='table'and type(api.get)=='function'then
+  local ok=call(api.register_option,SCALE_ID,{type='slider',label='武器 HUD 大小',
+   mod='集成HUD',mod_id='mods/integrated_hud/mdl_gamesession/main',
+   description='百分比；整体等比例缩放，固定准星中心锚点，仅影响武器 HUD。',
+   min=50,max=150,step=5,default=100})
+  if ok==true then scale_api=api end
+ end
+ for i=#definition.options,1,-1 do
+  if definition.options[i].key=='weapon_scale'then table.remove(definition.options,i)end
+ end
+ if not scale_api then
+  -- Older/configured MDL installations can still adjust the same percentage.
+  definition.options[#definition.options+1]={key='weapon_scale',type='number',
+   label='武器 HUD 大小',min=50,max=150,step=5,default=100}
+  log('SCALE slider API unavailable; numeric setting fallback')
+ end
+end
 local function stop()
  active_mod=false;stop_weapon();stop_vehicle()
+ scale_api=nil
 end
-return {
- name='集成HUD',version='0.5.9',author='2375120981',
+definition={
+ name='集成HUD',version='0.6.0',author='2375120981',
  description='MDL加载；GameSession读取武器、背包和载具；无需HD2Data或Chef。',
  options={
   {key='weapon_hud',type='toggle',label='武器 HUD',default=true},
@@ -175,6 +215,7 @@ return {
  },
  on_enable=function(ctx)
   stop()
+  register_scale()
   local settings=ctx and ctx.settings
   if type(settings)=='table'and settings.vehicle_hud~=nil then
    -- Migrate the former combined toggle once, including a saved off state.
@@ -187,7 +228,7 @@ return {
   log('START MDL managed; GameSession; independent HUD settings')
  end,
  on_setting=function(ctx,key,value)
-  if key=='weapon_hud'or key=='frv_hud'or key=='tank_hud'or key=='mech_hud'then
+  if key=='weapon_hud'or key=='frv_hud'or key=='tank_hud'or key=='mech_hud'or key=='weapon_scale'then
    sync_settings(ctx);log('SETTING '..key..'='..tostring(value))
   end
  end,
@@ -199,3 +240,4 @@ return {
  end,
  on_disable=function()stop();log('STOP')end
 }
+return definition
