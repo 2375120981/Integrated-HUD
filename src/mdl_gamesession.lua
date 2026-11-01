@@ -24,7 +24,7 @@ end
 local function log(s)
  pcall(function()
   local base=os.getenv('APPDATA');if not base then return end
-  local f=io.open(base..'/Arrowhead/Helldivers2/IntegratedHUD-MDL-0.5.8.log','a')
+  local f=io.open(base..'/Arrowhead/Helldivers2/IntegratedHUD-MDL-0.5.9.log','a')
   if f then f:write(string.format('%.3f %s\n',clock,s));f:close()end
  end)
 end
@@ -163,7 +163,7 @@ local function stop()
  active_mod=false;stop_weapon();stop_vehicle()
 end
 return {
- name='集成HUD',version='0.5.8',author='2375120981',
+ name='集成HUD',version='0.5.9',author='2375120981',
  description='MDL加载；GameSession读取武器、背包和载具；无需HD2Data或Chef。',
  options={
   {key='weapon_hud',type='toggle',label='武器 HUD',default=true},

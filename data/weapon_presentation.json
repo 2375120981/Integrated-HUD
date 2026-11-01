@@ -66,6 +66,27 @@
       "material": "f83f6f461ed94e4b",
       "path": "content/ui/mission/hud/weapon_function/airstrike",
       "aspect": 1
+    },
+    "AUTO": {
+      "bullet_rows": [
+        1,
+        1,
+        1
+      ]
+    },
+    "VOLLEY": {
+      "bullet_rows": [
+        2,
+        1
+      ]
+    },
+    "TOTAL": {
+      "bullet_rows": [
+        2,
+        2,
+        2,
+        1
+      ]
     }
   },
   "font_source": "bundled_outline_geometry",

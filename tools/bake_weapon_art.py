@@ -112,6 +112,19 @@ def main():
     presentation=json.loads((ROOT/'data/weapon_presentation.json').read_text(encoding='utf-8'))
     icons={}
     for label,spec in presentation['icons'].items():
+        if 'bullet_rows' in spec:
+            # Original compact firing-pattern symbols, baked into the same
+            # rectangle coverage format as bundled PNG icons.
+            rows=spec['bullet_rows']; height=len(rows)*4-1
+            width=max(rows)*7-1; rects=[]
+            for row,count in enumerate(rows):
+                for col in range(count):
+                    x,y=col*7,(len(rows)-1-row)*4
+                    for dx,dy,w,h in [(0,0,4,3),(4,.5,1,2),(5,1,1,1)]:
+                        rects.append([round((x+dx)/height,6),round((y+dy)/height,6),
+                                      round(w/height,6),round(h/height,6),255])
+            icons[label]={'aspect':width/height,'rects':rects}
+            continue
         name=spec['path'].rsplit('/',1)[-1]
         icons[label]=icon_spans(Image.open(ROOT/'assets/weapon_icons'/f'{name}.png'))
     data={'font':'Monocraft','font_program_embedded':False,'glyphs':baked,'icons':icons}

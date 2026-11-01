@@ -39,6 +39,7 @@ assert(status=='AVATAR CHANGE'and pose==before,'direct avatar replacement used a
 -- Exercise the real host: membership/type/node checks before native vectors.
 local nodes,reference,position_reads,unit_reads=1,10,0,0
 local sensor_count,shutdowns,change=0,0,false
+local weapon_data=nil
 local world='world';local field_ok=true;local bound_avatar=10
 local E={Application={},Network={},GameSession={},Unit={},World={},IdString64={},Vector3={}}
 E.Application.main_world=function()return world end
@@ -67,6 +68,7 @@ env.require=function(name)
   return {avatar=function()return bound_avatar end,player=function()return 0 end,
    update=function()
     if change then change=false;return nil,'AVATAR CHANGE'end
+    if weapon_data then return weapon_data,'READY'end
     h.player_unit();return nil,'IDENTIFY'
    end,shutdown=function()shutdowns=shutdowns+1 end}
  end
@@ -82,9 +84,23 @@ field_ok=true;reference=20;reader.read(1.6)
 assert(position_reads==p and unit_reads==u,'player link mismatch read old position')
 reference=10;change=true;local made=sensor_count
 reader.read(1.61);assert(sensor_count==made+1 and shutdowns==1,'life transition retained sensor caches')
+-- The real host must pass only VG-70's special firing patterns to drawing.
+weapon_data={tid='cfaa9ddc',goid0=100,kind='ammo',value=43,top=49,reserve=3}
+for raw,expected in pairs({[1]='AUTO',[4]='VOLLEY',[7]='TOTAL'})do
+ weapon_data.raw_fire_mode=raw
+ local v=reader.read(1.62)
+ assert(v.mode==expected and v.rounds==43 and v.mags==3,'VG-70 pattern not refreshed')
+end
+for _,raw in ipairs({0,2,3,9,-1,1.5,math.huge})do
+ weapon_data.raw_fire_mode=raw;assert(reader.read(1.63).mode=='','invalid VG-70 mode shown')
+end
+weapon_data.tid='b697955d';weapon_data.raw_fire_mode=1;weapon_data.fmode='AUTO'
+assert(reader.read(1.64).mode=='','ordinary auto selector became visible')
+weapon_data.mode='APHET';assert(reader.read(1.65).mode=='APHET','existing function mode lost')
+weapon_data=nil
 world='new_world';made=sensor_count;reader.read(1.8)
 assert(sensor_count==made+1,'world change retained old unit context')
 reader.shutdown()
 return {death_stops_pose=true,missing_avatar_blocks_reads=true,respawn_recovers=true,
  direct_avatar_change=true,position_node_guard=true,player_link_rechecked=true,
- sensor_recreated_on_life_change=true,world_context_reset=true}
+ sensor_recreated_on_life_change=true,world_context_reset=true,vg70_firing_patterns=true}

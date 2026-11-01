@@ -1,11 +1,11 @@
 # 集成HUD（Integrated HUD）
 
-当前版本：**0.5.8**，新增武器、FRV、坦克、机甲独立开关，保留0.5.5死亡复活保护修复，尚待本轮实机复测。使用 **MDL3 加载和启停**，通过游戏 GameSession 接口读取数据；武器部分基于 NarrowHUD 2.0.0 的读取与学习方案，不依赖 HD2 Data Hub 或 Chef Shared Loader。
+当前版本：**0.5.9**，补充 VG-70“变数”的自动／齐射／全射模式图标，保留武器、FRV、坦克、机甲独立开关，保留0.5.5死亡复活保护修复，尚待本轮实机复测。使用 **MDL3 加载和启停**，通过游戏 GameSession 接口读取数据；武器部分基于 NarrowHUD 2.0.0 的读取与学习方案，不依赖 HD2 Data Hub 或 Chef Shared Loader。
 
 ## 功能
 
 - **武器 HUD**：准星右侧单圆弧显示弹匣余量或热量；弹匣武器下方显示“弹匣内余量 / 备用弹匣量”，热量武器显示百分比，换弹时隐藏武器 HUD。
-- **模式与射速**：圆弧右侧显示解析得到的功能模式及射速设置；内置模式采用随包图标，其余已解析模式回退为文字。不显示半自动／全自动，没有有效数据时不显示占位。
+- **模式与射速**：圆弧右侧显示解析得到的功能模式及射速设置；内置模式采用随包图标，其余已解析模式回退为文字。VG-70 额外显示自动／齐射／全射图标；其他武器不显示普通半自动／全自动，没有有效数据时不显示占位。
 - **背包供弹**：读取独立背包对象的剩余量，结合归属及消耗关联；不额外绘制背包面板。
 - **乘员探头**：个人武器 HUD 使用同一读取路径，不因乘坐载具而统一隐藏。
 - **FRV／坦克 HUD**：显示载具外形、座位占用和当前血量，标记本地玩家座位；FRV 额外显示轮胎状态。
@@ -32,7 +32,7 @@
 
 MDL3 作者：M!ni$try0fSc!eиce。请前往 [MDL3 官方发布页](https://ayakamods.com/mods/mdl3-preview-%E9%BA%A6%E5%BD%93%E5%8A%B33-%E9%A2%84%E8%A7%88%E7%89%88%EF%BC%81.5710/) 阅读安装说明及条款并下载依赖。本仓库和构建包不附带 MDL3、HD2 Data Hub 或 Chef 加载器。
 
-关闭游戏，停用旧版集成 HUD 和提供重复武器／载具界面的冲突模组，再用支持 MDL 的管理器导入 `IntegratedHUD-MDL-0.5.8.zip` 并部署。保留 MDL3 启用；其他模组需要 HD2 Data Hub 时可继续保留，它不是本模组的前置。首次部署材质后重启游戏。之后可通过 MDL 启停本模组。
+关闭游戏，停用旧版集成 HUD 和提供重复武器／载具界面的冲突模组，再用支持 MDL 的管理器导入 `IntegratedHUD-MDL-0.5.9.zip` 并部署。保留 MDL3 启用；其他模组需要 HD2 Data Hub 时可继续保留，它不是本模组的前置。首次部署材质后重启游戏。之后可通过 MDL 启停本模组。
 
 本包不覆盖游戏 boot，不调用 FFI，也不需要玩家安装 Python 或外部采样器。
 
@@ -51,7 +51,7 @@ python tools/build.py --game-root "D:\steam\steamapps\common\Helldivers 2"
 
 ## 日志与目录
 
-武器日志：`%APPDATA%/Arrowhead/Helldivers2/IntegratedHUD-MDL-0.5.8.log`。
+武器日志：`%APPDATA%/Arrowhead/Helldivers2/IntegratedHUD-MDL-0.5.9.log`。
 
 载具日志：同目录的 `driver_hud_lua51.log`；学习缓存为 `IntegratedHUD-Narrow200-learned.txt`，不覆盖原 NarrowHUD 缓存。
 

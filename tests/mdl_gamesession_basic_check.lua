@@ -64,6 +64,13 @@ end
 local addon=env.require(BASE..'main');addon.on_enable();addon.on_update(nil,.1)
 assert(next(pool)~=nil and vehicle_updates==1,'weapon/vehicle dispatch failed')
 local before=serial;addon.on_update(nil,.1);assert(serial==before,'stable GUI recreated')
+local art=env.require(BASE..'font')
+for _,mode in ipairs({'AUTO','VOLLEY','TOTAL'})do
+ assert(art.icons[mode]and #art.icons[mode].rects>0,'VG-70 bundled icon missing')
+ current.mode=mode;local previous=serial;addon.on_update(nil,.1)
+ assert(serial>previous,'VG-70 icon did not refresh')
+ previous=serial;addon.on_update(nil,.1);assert(serial==previous,'stable VG-70 icon recreated')
+end
 -- A seated snapshot has the same path: no motion gate in the entry.
 current.mags=2;addon.on_update(nil,.1);assert(serial>before)
 current.state='RELOADING';addon.on_update(nil,.1);assert(next(pool)==nil,'reload not hidden')
@@ -109,7 +116,7 @@ assert(legacy.settings.vehicle_hud==nil and legacy.settings.frv_hud==false
 assert(vehicle_updates==vehicle_before and reads==read_before,'legacy off choice ignored')
 addon.on_disable()
 assert(env.update==nil and env.__DRIVER_HUD_INSTALLED==nil,'managed entry installed global hooks')
-return {narrow200_normalisation=true,function_mode=true,adjustable_rpm_only=true,
+return {narrow200_normalisation=true,function_mode=true,adjustable_rpm_only=true,vg70_icons=true,
  backpack_remaining=true,reload_hide=true,cached_gui=true,managed_enable_disable=true,
  independent_vehicle_dispatch=true,no_global_hooks=true,independent_hud_options=true,
  option_cleanup_immediate=true,disabled_reader_stops=true,saved_options_respected=true,four_hud_options=true,legacy_vehicle_option_migrated=true}

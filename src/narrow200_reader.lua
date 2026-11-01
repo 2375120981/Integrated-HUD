@@ -11,6 +11,9 @@ local function path()
  return base and base..'/Arrowhead/Helldivers2/IntegratedHUD-Narrow200-learned.txt'
 end
 local STR={modes=true,poses=true,rpms=true,options1=true,rpmbase=true}
+-- VG-70's selectable firing patterns are weapon functions, unlike the
+-- ordinary auto/semi selector intentionally omitted for other weapons.
+local VG70_MODES={[1]='AUTO',[4]='VOLLEY',[7]='TOTAL'}
 local function load_table()
  local p=path();local f=p and io.open(p,'r');if not f then return nil end
  local out={_v=1}
@@ -134,13 +137,19 @@ function Module.new(sr,log)
   local ratio=finite(d.value)and finite(d.top)and d.top>0 and math.max(0,math.min(1,d.value/d.top))or nil
   if not ratio then return {state='WAIT AMMO'}end
   local fm=d.fmode
+  local mode=d.mode
+  if d.tid=='cfaa9ddc' then
+   local raw=d.raw_fire_mode
+   mode=finite(raw)and raw>=0 and raw==math.floor(raw)
+    and math.floor(raw/8)%2==0 and VG70_MODES[raw%8]or nil
+  end
   if not fm and finite(d.raw_fire_mode)and math.floor(d.raw_fire_mode/8)%2==0 then
    fm=({[5]='SAFE',[6]='UNSAFE'})[d.raw_fire_mode%8]
   end
   return {state=d.reloading and'RELOADING'or'READY',entity=d.goid0,hash=d.tid,ratio=ratio,
    kind=d.kind,rounds=d.kind=='ammo'and d.value or nil,capacity=d.top,mags=d.reserve,
    heat_percent=d.kind=='heat'and math.floor(100*d.value/(d.pct_top or d.top)+.5)or nil,
-   overheated=d.overheated==true,mode=d.mode or'',rpm=d.setting or'',
+   overheated=d.overheated==true,mode=mode or'',rpm=d.setting or'',
    safety=(fm=='SAFE'or fm=='UNSAFE')and fm or''}
  end
  function R.shutdown()if sensor then sensor.shutdown();sensor=nil end;units={};context=nil end
