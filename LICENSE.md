@@ -8,4 +8,6 @@ NarrowHUD 2.0.0 衍生的武器传感器与随附数据依其专门许可使用�
 
 Monocraft 字体及随包字形几何采用 SIL Open Font License 1.1，见 third_party/monocraft/LICENSE.txt。原版武器图标保留游戏权利归属，不按 MIT 或 NarrowHUD 许可重新授权。运行时使用有限字形几何，不加载完整字体程序。图标来源说明见 assets/weapon_icons/README.md。
 
+Fusion Pixel 缝合像素字体及延迟面板使用的派生位图字形页采用 SIL Open Font License 1.1。原字体、来源及完整许可见 `third_party/fusion_pixel/`；上游字体的附带声明见其 `LICENSES/` 子目录。此部分不按本项目自有代码或 DRIVER HUD 的许可重新授权。
+
 MDL3 是单独安装的依赖，其许可与条款由作者规定。本仓库不附带或重新授权 MDL3、HD2 Data Hub 或 Chef 加载器。

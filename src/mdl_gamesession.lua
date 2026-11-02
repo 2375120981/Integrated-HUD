@@ -2,14 +2,29 @@
 -- MDL-managed lifecycle; GameSession supplies gameplay state.
 local reader
 local vehicles
+local network_hud
+local next_network_error=0
 local vehicle_views_key=nil
 local active_mod=false
 local next_vehicle_error=0
 local weapon_scale=1
 local scale_api=nil
+local network_scale_api=nil
+local network_position_apis={}
 local anchor_x,anchor_y=0,0
 local definition
 local SCALE_ID='integrated_hud.weapon_scale'
+local NETWORK_SCALE_ID='integrated_hud.network_scale'
+local NETWORK_POSITION={
+ {key='network_x',id='integrated_hud.network_x',label='延迟面板横向位置',default=0,
+  description='百分比：0 靠左、50 居中、100 靠右。'},
+ {key='network_y',id='integrated_hud.network_y',label='延迟面板纵向位置',default=50,
+  description='百分比：0 顶部、50 垂直居中、100 底部。'}
+}
+local function position_percent(value,default)
+ if type(value)~='number'or value~=value or math.abs(value)==math.huge then return default end
+ return math.max(0,math.min(100,math.floor(value+.5)))
+end
 local function scale_percent(value)
  if type(value)~='number'or value~=value or math.abs(value)==math.huge then return 100 end
  return math.max(50,math.min(150,math.floor(value/5+.5)*5))
@@ -33,7 +48,7 @@ end
 local function log(s)
  pcall(function()
   local base=os.getenv('APPDATA');if not base then return end
-  local f=io.open(base..'/Arrowhead/Helldivers2/IntegratedHUD-MDL-0.6.0.log','a')
+  local f=io.open(base..'/Arrowhead/Helldivers2/IntegratedHUD-MDL-0.7.3.log','a')
   if f then f:write(string.format('%.3f %s\n',clock,s));f:close()end
  end)
 end
@@ -112,6 +127,10 @@ local function frame(dt)
   local ok,err=pcall(vehicles.update,dt)
   if not ok and clock>=next_vehicle_error then next_vehicle_error=clock+5;log('VEHICLE_ERROR '..tostring(err))end
  end
+ if network_hud then
+  local ok,err=pcall(network_hud.update,clock)
+  if not ok and clock>=next_network_error then next_network_error=clock+5;log('NETWORK_ERROR '..tostring(err))end
+ end
  if not reader then return end
  local worlds=call(App.worlds)
  if gui and not live(worlds,world)then gui=nil;world=nil;groups={};next_gui=0 end
@@ -156,6 +175,19 @@ end
 local function sync_settings(ctx)
  if not active_mod then return end
  local settings=type(ctx)=='table'and type(ctx.settings)=='table'and ctx.settings or{}
+ if settings.network_hud==true then
+  if not network_hud then network_hud=require('mods/integrated_hud/mdl_gamesession/network_ping_hud').new(E,log)end
+ elseif network_hud then call(network_hud.shutdown);network_hud=nil end
+ if network_hud then
+  local percent=network_scale_api and call(network_scale_api.get,NETWORK_SCALE_ID)or settings.network_scale
+  network_hud.set_scale(scale_percent(percent)/100)
+  local position={}
+  for i,spec in ipairs(NETWORK_POSITION)do
+   local api=network_position_apis[spec.key]
+   position[i]=position_percent(api and call(api.get,spec.id)or settings[spec.key],spec.default)
+  end
+  network_hud.set_position(position[1],position[2])
+ end
  local percent=scale_api and call(scale_api.get,SCALE_ID)or settings.weapon_scale
  weapon_scale=scale_percent(percent)/100
  if settings.weapon_hud~=false then
@@ -181,15 +213,29 @@ local function register_scale()
  -- Poll the saved value; avoid retaining on_change callbacks after disable.
  local api=rawget(_G,'ModOptionsMenu')
  scale_api=nil
+ network_scale_api=nil
+ network_position_apis={}
  if type(api)=='table'and type(api.get)=='function'then
   local ok=call(api.register_option,SCALE_ID,{type='slider',label='武器 HUD 大小',
    mod='集成HUD',mod_id='mods/integrated_hud/mdl_gamesession/main',
    description='百分比；整体等比例缩放，固定准星中心锚点，仅影响武器 HUD。',
    min=50,max=150,step=5,default=100})
   if ok==true then scale_api=api end
+  local network_ok=call(api.register_option,NETWORK_SCALE_ID,{type='slider',label='延迟面板大小',
+   mod='集成HUD',mod_id='mods/integrated_hud/mdl_gamesession/main',
+   description='百分比；整体等比例缩放，仅影响延迟面板。默认位置为左侧贴边、垂直居中。',
+   min=50,max=150,step=5,default=100})
+  if network_ok==true then network_scale_api=api end
+  for _,spec in ipairs(NETWORK_POSITION)do
+   local registered=call(api.register_option,spec.id,{type='slider',label=spec.label,
+    mod='集成HUD',mod_id='mods/integrated_hud/mdl_gamesession/main',description=spec.description,
+    min=0,max=100,step=1,default=spec.default})
+   if registered==true then network_position_apis[spec.key]=api end
+  end
  end
  for i=#definition.options,1,-1 do
-  if definition.options[i].key=='weapon_scale'then table.remove(definition.options,i)end
+  local key=definition.options[i].key
+  if key=='weapon_scale'or key=='network_scale'or key=='network_x'or key=='network_y'then table.remove(definition.options,i)end
  end
  if not scale_api then
   -- Older/configured MDL installations can still adjust the same percentage.
@@ -197,19 +243,34 @@ local function register_scale()
    label='武器 HUD 大小',min=50,max=150,step=5,default=100}
   log('SCALE slider API unavailable; numeric setting fallback')
  end
+ if not network_scale_api then
+  definition.options[#definition.options+1]={key='network_scale',type='number',
+   label='延迟面板大小',min=50,max=150,step=5,default=100}
+ end
+ for _,spec in ipairs(NETWORK_POSITION)do
+  if not network_position_apis[spec.key]then
+   definition.options[#definition.options+1]={key=spec.key,type='number',label=spec.label,
+    min=0,max=100,step=1,default=spec.default}
+  end
+ end
 end
 local function stop()
  active_mod=false;stop_weapon();stop_vehicle()
+ if network_hud then call(network_hud.shutdown);network_hud=nil end
  scale_api=nil
+ network_scale_api=nil
+ network_position_apis={}
 end
 definition={
- name='集成HUD',version='0.6.0',author='2375120981',
- description='MDL加载；GameSession读取武器、背包和载具；无需HD2Data或Chef。',
+ name='集成HUD',version='0.7.3',author='2375120981',
+ description='MDL加载；武器与载具读取无需Hub；网络延迟可选依赖HD2 Data Hub。',
  options={
   {key='weapon_hud',type='toggle',label='武器 HUD',default=true},
   {key='frv_hud',type='toggle',label='FRV HUD',default=true},
   {key='tank_hud',type='toggle',label='坦克 HUD',default=true},
   {key='mech_hud',type='toggle',label='机甲 HUD',default=true},
+  {key='network_hud',type='toggle',label='网络延迟 (需Hub)',default=false},
+  {key='network_note',type='text',label='延迟显示需启用 HD2 Data Hub',default=''},
   {key='hot_toggle_note_1',type='text',label='局内热切换后可能需要',default=''},
   {key='hot_toggle_note_2',type='text',label='上下车或武器开火刷新状态',default=''}
  },
@@ -228,7 +289,7 @@ definition={
   log('START MDL managed; GameSession; independent HUD settings')
  end,
  on_setting=function(ctx,key,value)
-  if key=='weapon_hud'or key=='frv_hud'or key=='tank_hud'or key=='mech_hud'or key=='weapon_scale'then
+  if key=='weapon_hud'or key=='frv_hud'or key=='tank_hud'or key=='mech_hud'or key=='weapon_scale'or key=='network_hud'or key=='network_scale'or key=='network_x'or key=='network_y'then
    sync_settings(ctx);log('SETTING '..key..'='..tostring(value))
   end
  end,

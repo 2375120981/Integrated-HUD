@@ -1,4 +1,4 @@
-"""Build MDL-managed Integrated HUD with GameSession readers, no Hub/Chef/boot."""
+"""Build MDL-managed Integrated HUD with GameSession readers and optional Hub RTT; no Chef/boot."""
 from pathlib import Path
 import argparse
 import hashlib
@@ -73,6 +73,11 @@ def main():
     sources = {
         entry: read('src/mdl_gamesession.lua'),
         BASE + 'reader': read('src/narrow200_reader.lua'),
+        BASE + 'network_ping': read('src/network_ping.lua'),
+        BASE + 'network_ping_hud': read('src/network_ping_hud.lua'),
+        BASE + 'network_text': read('src/network_text.lua'),
+        BASE + 'utf8_text': read('src/utf8_text.lua'),
+        BASE + 'network_font_index': 'return ' + lua_value(json.loads(read('data/network_font/index.json'))),
         BASE + 'sensor': read('src/vendor/narrowhud_weapon_200.lua'),
         BASE + 'art_ui': read('src/weapon_art_ui.lua'),
         BASE + 'font': 'return ' + lua_value(json.loads(read('data/weapon_art.json'))),
@@ -80,6 +85,9 @@ def main():
         PREFIX + 'driver_core': vehicle_source(),
         PREFIX + 'mech_binding': read('src/mech_binding.lua'),
     }
+    for page in sorted((ROOT / 'data/network_font').glob('*.json')):
+        if page.stem != 'index':
+            sources[BASE + 'network_font_' + page.stem] = 'return ' + lua_value(json.loads(page.read_text(encoding='utf-8')))
     layout = json.loads(read('layout/vehicles.json'))
     mech = layout['mech']
     mech['fill_triangles'] = triangulate_polygon(mech['outline'])
@@ -108,6 +116,9 @@ def main():
             assert dep in sources, (name, dep)
     lua.globals().SOURCES = lua.table_from(sources)
     checks = dict(lua.execute(read('tests/mdl_gamesession_basic_check.lua')).items())
+    ping_test=LuaRuntime(unpack_returned_tuples=True)
+    ping_test.globals().SOURCES=ping_test.table_from(sources)
+    checks.update(dict(ping_test.execute(read('tests/network_ping_basic_check.lua')).items()))
     checks.update(check_native(native_template, lua_value, args.output_dir))
     respawn_test = LuaRuntime(unpack_returned_tuples=True)
     respawn_test.globals().SOURCES = respawn_test.table_from(sources)
@@ -130,7 +141,8 @@ def main():
     inputs = json.loads(read('build-inputs.json'))
     report = {'version': VERSION, 'steam_build': cfg['steam_build'], 'pe_key': cfg['pe_key'],
               'loader': 'MDL3', 'weapon_reader': 'NarrowHUD 2.0.0 GameSession modules',
-              'chef_required': False, 'hd2data_required': False, 'ffi_required': False,
+              'chef_required': False, 'hd2data_required': False, 'hd2data_optional_features': ['network_ping'],
+              'network_ping_reader': '0.6.9 logic: session/connection gates + HD2Data roster + Network.ping + diagnostics', 'ffi_required': False,
               'vehicle_hud_enabled': True, 'mech_hud_enabled': True,
               'runtime_verified': False, 'deployed': False, 'boot_override': False,
               'checksum_sidecars': False, 'basic_checks': checks,
@@ -144,7 +156,7 @@ def main():
     assert resource_hash('boot') not in [struct.unpack_from('<Q', patch, 104 + i * 80)[0] for i in range(count)]
     manifest = {'Version': 1, 'Guid': '61710665-8698-4f23-bff7-00fbd715b2d8',
                 'Name': '集成HUD MDL ' + VERSION,
-                'Description': 'MDL加载及启停，支持武器、FRV、坦克和机甲HUD独立实时开关及武器HUD大小滑动条；GameSession读取武器弹药/热量/功能模式/射速/背包供弹；恢复FRV、坦克及机甲HUD。采用Monocraft及自带图标；换弹隐藏武器HUD。仅依赖MDL3，无需Chef或HD2Data。',
+                'Description': 'MDL加载及启停，支持武器、FRV、坦克和机甲HUD独立实时开关及武器HUD大小及左侧锚定的延迟面板独立缩放、横向位置及纵向位置滑动条；网络延迟可选依赖HD2 Data Hub，左侧紧凑双列以玩家名或peer标识RTT，标题右边缘纵向分隔，长名字截短，支持舰船阶段尝试采样及装备/菜单界面常显，中途加入临时会话回退到连接peer，原生编号待适配，不扫描远端对象；GameSession读取武器弹药/热量/功能模式/射速/背包供弹；恢复FRV、坦克及机甲HUD。武器采用Monocraft及自带图标，延迟面板采用支持中英文的Fusion Pixel；换弹隐藏武器HUD。核心依赖MDL3，无需Chef；延迟功能另需HD2 Data Hub。',
                 'Options': [
                     {'Name': 'HUD核心', 'Description': '武器、载具HUD；支持MDL局内启停及设置。',
                      'SubOptions': [
@@ -179,12 +191,13 @@ def main():
         data = (ROOT / 'assets/driver_hud' / name).read_bytes()
         assert hashlib.sha256(data).hexdigest() == expected
         files['HUD/' + name] = data
-    for family in ['driver_hud', 'narrowhud200', 'monocraft']:
-        for path in sorted((ROOT / 'third_party' / family).glob('*')):
-            if path.is_file(): files['third_party/' + family + '/' + path.name] = path.read_bytes()
+    for family in ['driver_hud', 'narrowhud200', 'monocraft', 'fusion_pixel']:
+        for path in sorted((ROOT / 'third_party' / family).rglob('*')):
+            if path.is_file(): files['third_party/' + family + '/' + path.relative_to(ROOT / 'third_party' / family).as_posix()] = path.read_bytes()
     files['CREDITS.txt'] = ('Integrated HUD: 2375120981.\nBased on NarrowHUD 2.0.0 by luka189 (reading modules, modified).\n'
                             'Vehicle core and solid material: DRIVER HUD; see bundled notices.\n'
                             'Monocraft: Idrees Hassan, SIL OFL 1.1.\n'
+                            'Fusion Pixel: TakWolf and upstream font authors, SIL OFL 1.1; network panel.\n'
                             'MDL3 is a separately installed dependency; official link in README.\n'
                             'No Chef, MDL3 or HD2 Data Hub component bundled.\n').encode()
     args.output_dir.mkdir(parents=True, exist_ok=True)
