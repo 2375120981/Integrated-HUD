@@ -53,15 +53,17 @@ E.Gui.triangle=function(_,a,b,c)serial=serial+1;pool[serial]={a,b,c};return seri
 E.Gui.destroy_triangle=function(_,id)assert(pool[id]);pool[id]=nil end
 local env=setmetatable({stingray=E,os={getenv=function()return nil end}},{__index=_G});env._G=env
 local scale_value,scale_spec=100,nil
+local ammo_scale_value,ammo_scale_spec=100,nil
+local labels={}
 local network_scale_value,network_scale_spec=100,nil
 local position_specs={};local position_values={network_x=0,network_y=50};local applied_position,applied_network_scale=nil,nil
 env.ModOptionsMenu={register_option=function(id,spec)
  local key=id:match('integrated_hud%.(network_[xy])$')
  if key then assert(spec.type=='slider'and spec.min==0 and spec.max==100 and spec.step==1 and spec.default==(key=='network_x'and 0 or 50));position_specs[key]=spec;return true end
- assert((id=='integrated_hud.weapon_scale'or id=='integrated_hud.network_scale')and spec.type=='slider')
+ assert((id=='integrated_hud.weapon_scale'or id=='integrated_hud.network_scale'or id=='integrated_hud.ammo_number_scale')and spec.type=='slider')
  assert(spec.min==50 and spec.max==150 and spec.step==5 and spec.default==100)
- if id=='integrated_hud.weapon_scale'then scale_spec=spec else network_scale_spec=spec end;return true
-end,get=function(id)local key=id:match('integrated_hud%.(network_[xy])$');if key then return position_values[key]end;if id=='integrated_hud.network_scale'then return network_scale_value end;assert(id=='integrated_hud.weapon_scale');return scale_value end}
+ if id=='integrated_hud.weapon_scale'then scale_spec=spec elseif id=='integrated_hud.ammo_number_scale'then ammo_scale_spec=spec else network_scale_spec=spec end;return true
+end,get=function(id)local key=id:match('integrated_hud%.(network_[xy])$');if key then return position_values[key]end;if id=='integrated_hud.network_scale'then return network_scale_value end;if id=='integrated_hud.ammo_number_scale'then return ammo_scale_value end;assert(id=='integrated_hud.weapon_scale');return scale_value end}
 local function geometry()
  local ids,out={},{}
  for id in pairs(pool)do ids[#ids+1]=id end;table.sort(ids)
@@ -84,7 +86,16 @@ env.require=function(name)
  if name=='mods/integrated_hud/driver_reference/driver_core'then return function()return {
   set_views=function(f,t,m)views={f,t,m}end,update=function()vehicle_updates=vehicle_updates+1 end,shutdown=function()stops=stops+1 end}end end
  if modules[name]then return modules[name]end
- local f=assert(loadstring(SOURCES[name]));setfenv(f,env);modules[name]=f();return modules[name]
+ local f=assert(loadstring(SOURCES[name]));setfenv(f,env);modules[name]=f()
+ if name==BASE..'art_ui'then
+  local original_new=modules[name].new
+  modules[name].new=function(...)
+   local font=original_new(...);local draw=font.text
+   font.text=function(g,m,text,x,y,height,...)labels[text]={x=x,y=y,height=height};return draw(g,m,text,x,y,height,...)end
+   return font
+  end
+ end
+ return modules[name]
 end
 local addon=env.require(BASE..'main');addon.on_enable();addon.on_update(nil,.1)
 assert(next(pool)~=nil and vehicle_updates==1,'weapon/vehicle dispatch failed')
@@ -96,7 +107,7 @@ for _,mode in ipairs({'AUTO','VOLLEY','TOTAL'})do
  assert(serial>previous,'VG-70 icon did not refresh')
  previous=serial;addon.on_update(nil,.1);assert(serial==previous,'stable VG-70 icon recreated')
 end
-assert(scale_spec and network_scale_spec and position_specs.network_x and position_specs.network_y,'MDL sliders not registered')
+assert(scale_spec and ammo_scale_spec and network_scale_spec and position_specs.network_x and position_specs.network_y,'MDL sliders not registered')
 local baseline=geometry();local stop_before=stops
 for _,percent in ipairs({50,150,100})do
  scale_value=percent;addon.on_update(nil,.1);scaled(baseline,percent/100)
@@ -104,6 +115,23 @@ for _,percent in ipairs({50,150,100})do
  assert(serial==previous,'unchanged scale rebuilt geometry')
  assert(stops==stop_before and views[1]and views[2]and views[3],'weapon scale reset vehicle module')
 end
+-- Changing the count size redraws immediately, retains its anchor and does not resize the arc or mode art.
+local number_before=labels['6 / 3'];local geometry_before=geometry()
+for _,percent in ipairs({150,50,100})do
+ ammo_scale_value=percent;addon.on_update(nil,.1)
+ local number=labels['6 / 3'];assert(number.x==number_before.x and number.y==number_before.y,'ammo number anchor moved')
+ assert(number.height==number_before.height*percent/100,'ammo slider not applied')
+ local now=geometry()
+ for i=1,100 do for j,p in ipairs(geometry_before[i])do
+  assert(now[i][j][1]==p[1]and now[i][j][3]==p[3],'ammo slider changed arc geometry')
+ end end
+ local previous=serial;addon.on_update(nil,.1);assert(serial==previous,'unchanged ammo scale rebuilt geometry')
+ assert(stops==stop_before,'ammo slider reset vehicle module')
+end
+current.kind='heat';current.heat_percent=50;addon.on_update(nil,.1)
+local heat_before=labels['50%'].height
+ammo_scale_value=150;addon.on_update(nil,.1);assert(labels['50%'].height==heat_before,'ammo slider resized heat percentage')
+current.kind='ammo';current.heat_percent=nil;ammo_scale_value=100;addon.on_update(nil,.1)
 -- A seated snapshot has the same path: no motion gate in the entry.
 current.mags=2;addon.on_update(nil,.1);assert(serial>before)
 current.state='RELOADING';addon.on_update(nil,.1);assert(next(pool)==nil,'reload not hidden')
@@ -164,6 +192,12 @@ addon.on_enable(fallback);addon.on_update(fallback,.1);scaled(ready_geometry,1.5
 local numeric=false
 for _,option in ipairs(addon.options)do if option.key=='weapon_scale'then numeric=option.type=='number'end end
 assert(numeric,'missing numeric fallback')
+local ammo_numeric=false;for _,option in ipairs(addon.options)do if option.key=='ammo_number_scale'then ammo_numeric=option.type=='number'end end
+assert(ammo_numeric,'missing ammo scale numeric fallback')
+fallback.settings.ammo_number_scale=125;addon.on_setting(fallback,'ammo_number_scale',125);addon.on_update(fallback,.1)
+assert(labels['6 / 2'].height==24*1.25,'ammo numeric fallback not applied')
+fallback.settings.ammo_number_scale=100;addon.on_setting(fallback,'ammo_number_scale',100);addon.on_update(fallback,.1)
+
 local network_numeric=false;for _,option in ipairs(addon.options)do if option.key=='network_scale'then network_numeric=option.type=='number'end end
 assert(network_numeric,'missing network scale fallback')
 local axes=0;for _,option in ipairs(addon.options)do if option.key=='network_x'or option.key=='network_y'then assert(option.type=='number');axes=axes+1 end end
@@ -176,7 +210,7 @@ addon.on_enable(position_fallback);addon.on_update(position_fallback,.1)
 assert(applied_position[1]==25 and applied_position[2]==75,'position numeric fallback not applied')
 addon.on_disable()
 assert(env.update==nil and env.__DRIVER_HUD_INSTALLED==nil,'managed entry installed global hooks')
-return {narrow200_normalisation=true,function_mode=true,adjustable_rpm_only=true,vg70_icons=true,
+return {ammo_number_scale_slider=true,ammo_number_scale_anchor_and_cache=true,ammo_number_scale_fallback=true,narrow200_normalisation=true,function_mode=true,adjustable_rpm_only=true,vg70_icons=true,
  network_position_sliders=true,network_position_saved_and_fallback=true,weapon_scale_slider=true,weapon_scale_anchor=true,weapon_scale_persisted=true,weapon_scale_fallback=true,
  backpack_remaining=true,reload_hide=true,cached_gui=true,managed_enable_disable=true,
  independent_vehicle_dispatch=true,no_global_hooks=true,independent_hud_options=true,

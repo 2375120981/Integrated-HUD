@@ -7,9 +7,12 @@ local loader=rawget(_G,'CowboyBingusModLoader')
 local startup=type(loader)=='table'and type(loader.modules)=='table'and loader.modules[ENTRY]=='loading'
 local handles={};local job=nil;local started=false;local committed=false
 local backup_temporary=nil
+local notice,result=nil,nil
+local clock,next_notice_error=0,0
 local base=os.getenv('APPDATA')
 local folder=base and(base..'/Arrowhead/Helldivers2/')
 local function log(text)
+ if text:sub(1,7)=='SUCCESS'then result='success'end
  if not folder then return end
  local f=io.open(folder..'IntegratedHUD-NativeSniper.log','a')
  if f then f:write(os.date('!%Y-%m-%dT%H:%M:%SZ')..' '..MODE..' '..text..'\n');f:close()end
@@ -137,20 +140,33 @@ local function run()
 end
 return {
  name='狙击准星安装任务（需重启）',version=__VERSION__,
- description='管理器选择开启或关闭。只在启动加载时执行；MDL局内启停不切换准星。结果见IntegratedHUD-NativeSniper.log。',
+ description='管理器选择开启或关闭。只在启动加载时执行；MDL局内启停不切换准星。结果见屏幕中央提示及IntegratedHUD-NativeSniper.log；成功后重启应用，可在管理器取消该选项。',
  on_enable=function()
   if started then return end;started=true
-  if not startup then log('DEFERRED live activation refused; deploy selection and restart game');return end
-  committed=false;job=coroutine.create(run);log('START startup-only '..MODE)
+  if not startup then result='deferred';log('DEFERRED live activation refused; deploy selection and restart game');return end
+  result='pending';committed=false;job=coroutine.create(run);log('START startup-only '..MODE)
  end,
- on_update=function()
-  if not job then return end
-  local ok,err=coroutine.resume(job)
-  if not ok then log('FAILED '..tostring(err));cleanup();job=nil
-  elseif coroutine.status(job)=='dead'then cleanup();job=nil end
+ on_update=function(_,dt)
+  clock=clock+(type(dt)=='number'and dt>0 and math.min(dt,.5)or 1/60)
+  if job then
+   local ok,err=coroutine.resume(job)
+   if not ok then result='failed';log('FAILED '..tostring(err));cleanup();job=nil
+   elseif coroutine.status(job)=='dead'then cleanup();job=nil end
+  end
+  if result and clock>=next_notice_error then
+   local ok,err=pcall(function()
+    if not notice then notice=require('mods/integrated_hud/native_sniper_notice').new(stingray,MODE)end
+    notice.update(result,clock)
+   end)
+   if not ok then
+    if notice then pcall(notice.shutdown);notice=nil end
+    next_notice_error=clock+5;log('NOTICE_ERROR '..tostring(err))
+   end
+  end
  end,
  on_disable=function()
   if job then log(committed and'POSTCHECK interrupted; data remains changed; restart to verify'or'CANCELLED before game write; no reticle change')end
-  cleanup();job=nil
+  cleanup();job=nil;result=nil
+  if notice then pcall(notice.shutdown);notice=nil end
  end
 }

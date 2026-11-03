@@ -11,3 +11,5 @@ Monocraft 字体及随包字形几何采用 SIL Open Font License 1.1，见 thir
 Fusion Pixel 缝合像素字体及延迟面板使用的派生位图字形页采用 SIL Open Font License 1.1。原字体、来源及完整许可见 `third_party/fusion_pixel/`；上游字体的附带声明见其 `LICENSES/` 子目录。此部分不按本项目自有代码或 DRIVER HUD 的许可重新授权。
 
 MDL3 是单独安装的依赖，其许可与条款由作者规定。本仓库不附带或重新授权 MDL3、HD2 Data Hub 或 Chef 加载器。
+
+独立狙击准星工具使用的 PyNaCl/libsodium、cffi、pycparser、Python 及 PyInstaller 依各自许可分发，完整附带文本见 `assets/native_sniper_tool/licenses/`（发布包内为 `NativeSniperTool/licenses/`）。这些组件不适用 HUD 第三方模块的统一许可。

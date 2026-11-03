@@ -95,6 +95,7 @@ def main():
     sources[PREFIX + 'mech_style_data'] = 'return ' + lua_value(mech)
     assert sources[entry].startswith('-- HD2-Addon: ' + entry + '\n')
     from lupa.lua51 import LuaRuntime
+    lua = LuaRuntime(unpack_returned_tuples=True)
     import sys
     sys.path.insert(0, str(ROOT / 'tests'))
     from native_sniper_basic_check import check as check_native, render as render_native
@@ -102,24 +103,36 @@ def main():
     assert native_spec['build'] == cfg['steam_build']
     native_template = read('src/native_sniper_setup.lua')
     native_entry = 'mods/integrated_hud/native_sniper_setup'
-    native_sources = {mode: render_native(native_template, mode, native_spec, VERSION, lua_value)
-                      for mode in ['apply', 'restore']}
+    notice_source = read('src/native_sniper_notice.lua')
+    # The one-shot task can display Chinese even if HUD core is not selected.
+    notice_support = {'mods/integrated_hud/native_sniper_notice': notice_source}
+    for key in ('network_text', 'utf8_text', 'network_font_index'):
+        notice_support[BASE + key] = sources[BASE + key]
+    for page in {format(ord(c) // 256, 'x') for c in notice_source}:
+        key = BASE + 'network_font_' + page
+        if key in sources:
+            notice_support[key] = sources[key]
+    native_sources = {mode: dict(notice_support, **{native_entry: render_native(native_template, mode, native_spec, VERSION, lua_value)})
+                      for mode in ('apply', 'restore')}
+    for variant in native_sources.values():
+        for name, source in variant.items():
+            lua.compile(source, name=name)
+            for dep in re.findall(r"require\(['\"]([^'\"]+)['\"]\)", source):
+                assert dep in variant, (name, dep)
     args.output_dir.mkdir(parents=True, exist_ok=True)
-    lua = LuaRuntime(unpack_returned_tuples=True)
-    for mode, source in native_sources.items():
-        lua.compile(source, name=native_entry)
-        assert source.startswith('-- HD2-Addon: ' + native_entry + '\n')
-        assert '__NATIVE_' not in source and '__VERSION__' not in source
     for name, source in sources.items():
         lua.compile(source, name=name)
         for dep in re.findall(r"require\(['\"]([^'\"]+)['\"]\)", source):
             assert dep in sources, (name, dep)
     lua.globals().SOURCES = lua.table_from(sources)
     checks = dict(lua.execute(read('tests/mdl_gamesession_basic_check.lua')).items())
+    checks.update(check_native(native_template, lua_value, args.output_dir))
+    notice_test = LuaRuntime(unpack_returned_tuples=True)
+    notice_test.globals().SOURCES = notice_test.table_from(notice_support)
+    checks.update(dict(notice_test.execute(read('tests/native_sniper_notice_basic_check.lua')).items()))
     ping_test=LuaRuntime(unpack_returned_tuples=True)
     ping_test.globals().SOURCES=ping_test.table_from(sources)
     checks.update(dict(ping_test.execute(read('tests/network_ping_basic_check.lua')).items()))
-    checks.update(check_native(native_template, lua_value, args.output_dir))
     respawn_test = LuaRuntime(unpack_returned_tuples=True)
     respawn_test.globals().SOURCES = respawn_test.table_from(sources)
     checks.update({'respawn_' + k: v for k, v in dict(respawn_test.execute(
@@ -146,27 +159,30 @@ def main():
               'vehicle_hud_enabled': True, 'mech_hud_enabled': True,
               'runtime_verified': False, 'deployed': False, 'boot_override': False,
               'checksum_sidecars': False, 'basic_checks': checks,
-              'native_sniper': {'manager_choices': ['restore', 'apply'], 'startup_only': True,
-                                'game_data_bundled': False, 'ffi_required': False,
-                                'crosshair_visual_verified_by_user': native_spec['visual_verified'],
-                                'installer_game_test_pending': True},
+              'native_sniper': {'tool_version': inputs['native_sniper_tool']['version'],
+                                'standalone_tool': True, 'confirmation_required': True,
+                                'user_verified': inputs['native_sniper_tool']['user_verified'],
+                                'startup_installer_bundled': True, 'startup_exact_data_check': True,
+                                'manager_choices': ['restore', 'apply'], 'center_result_notice': True,
+                                'game_data_bundled': False, 'standalone_tool_deployed_by_manager': False},
               'source_sha256': {k: hashlib.sha256(v.encode()).hexdigest() for k, v in sources.items()}}
     patch = archive({k: v.encode() for k, v in sources.items()})
     count = struct.unpack_from('<I', patch, 8)[0]
     assert resource_hash('boot') not in [struct.unpack_from('<Q', patch, 104 + i * 80)[0] for i in range(count)]
     manifest = {'Version': 1, 'Guid': '61710665-8698-4f23-bff7-00fbd715b2d8',
                 'Name': '集成HUD MDL ' + VERSION,
-                'Description': 'MDL加载及启停，支持武器、FRV、坦克和机甲HUD独立实时开关及武器HUD大小及左侧锚定的延迟面板独立缩放、横向位置及纵向位置滑动条；网络延迟可选依赖HD2 Data Hub，左侧紧凑双列以玩家名或peer标识RTT，标题右边缘纵向分隔，长名字截短，支持舰船阶段尝试采样及装备/菜单界面常显，中途加入临时会话回退到连接peer，原生编号待适配，不扫描远端对象；GameSession读取武器弹药/热量/功能模式/射速/背包供弹；恢复FRV、坦克及机甲HUD。武器采用Monocraft及自带图标，延迟面板采用支持中英文的Fusion Pixel；换弹隐藏武器HUD。核心依赖MDL3，无需Chef；延迟功能另需HD2 Data Hub。',
+                'Description': '管理器提供准星开启/关闭一次性启动任务，成功后屏幕中央提示重启及取消选项；不兼容数据可使用随包NativeSniperTool独立修复工具。MDL加载及启停，支持武器、FRV、坦克和机甲HUD独立实时开关及武器HUD整体大小、弹匣/备弹数字独立大小及左侧锚定的延迟面板独立缩放、横向位置及纵向位置滑动条；网络延迟可选依赖HD2 Data Hub，左侧紧凑双列以玩家名或peer标识RTT，标题右边缘纵向分隔，长名字截短，支持舰船阶段尝试采样及装备/菜单界面常显，中途加入临时会话回退到连接peer，原生编号待适配，不扫描远端对象；GameSession读取武器弹药/热量/功能模式/射速/背包供弹；恢复FRV、坦克及机甲HUD。武器采用Monocraft及自带图标，延迟面板采用支持中英文的Fusion Pixel；换弹隐藏武器HUD。核心依赖MDL3，无需Chef；延迟功能另需HD2 Data Hub。',
                 'Options': [
-                    {'Name': 'HUD核心', 'Description': '武器、载具HUD；支持MDL局内启停及设置。',
+                    {'Name': 'HUD核心',
+                     'Description': '武器、载具及可选Hub延迟HUD；支持MDL局内启停及设置。狙击枪准星可选择下方一次性任务；亦随包提供独立修复工具。',
                      'SubOptions': [
                          {'Name': '集成HUD', 'Description': '武器、载具HUD；支持MDL局内启停及设置。', 'Include': ['HUD']}
                      ]},
-                    {'Name': '狙击枪原生准星（安装或恢复，需重启）',
-                     'Description': '两个子选项互斥。部署后启动游戏，等待IntegratedHUD-NativeSniper.log出现SUCCESS，再重启。关闭HUD或卸载模组不会恢复游戏数据，卸载前必须完成关闭选项。',
+                    {'Name': '狙击枪原生准星（一次性操作，需重启）',
+                     'Description': '开启/关闭互斥。启动后完成校验与修改，屏幕中央显示结果。成功后重启，并可在管理器取消本组选项，准星状态仍保留。不兼容数据拒绝写入，可使用随包独立工具。',
                      'SubOptions': [
-                         {'Name': '关闭狙击枪准星（恢复原版）', 'Description': '恢复原版配置；执行成功后重启。', 'Include': ['ReticleRestore']},
-                         {'Name': '开启狙击枪准星', 'Description': '为APW-1、R-40、AMW-20启用已验证的原生准星；执行成功后重启。', 'Include': ['ReticleApply']}
+                         {'Name': '关闭狙击枪准星（恢复原版）', 'Description': '一次性恢复原版准星，成功后显示中央提示；重启应用后可取消本选项。', 'Include': ['ReticleRestore']},
+                         {'Name': '开启狙击枪准星', 'Description': '一次性为APW-1、R-40、AMW-20启用原生准星，成功后显示中央提示；重启应用后可取消本选项。', 'Include': ['ReticleApply']}
                      ]}
                 ]}
     files = {'manifest.json': json.dumps(manifest, ensure_ascii=False, indent=2).encode(),
@@ -178,19 +194,32 @@ def main():
              'version.json': read('version.json').encode(),
              'CREDITS.md': read('CREDITS.md').encode(),
              'LICENSE.md': read('LICENSE.md').encode()}
+    # The confirmed standalone switch runs only when explicitly launched by the user.
+    # Offline repair and manager-selected startup jobs must not run concurrently.
+    tool_assets = ROOT / 'assets/native_sniper_tool'
+    tool_spec = inputs['native_sniper_tool']
+    expected_tool_files = tool_spec['files_sha256']
+    assert {p.relative_to(tool_assets).as_posix() for p in tool_assets.rglob('*') if p.is_file()} == set(expected_tool_files)
+    for name, expected in expected_tool_files.items():
+        data = (tool_assets / name).read_bytes()
+        assert hashlib.sha256(data).hexdigest() == expected, 'Unverified sniper tool asset: ' + name
+        files['NativeSniperTool/' + name] = data
+    files['NativeSniperTool/README.md'] = read('tools/native_sniper/README.md').encode()
+    for path in sorted((ROOT / 'tools/native_sniper').iterdir()):
+        if path.is_file() and path.suffix in ('.py', '.cpp', '.exe'):
+            files['NativeSniperTool/source/' + path.name] = path.read_bytes()
     for mode, folder in [('apply', 'ReticleApply'), ('restore', 'ReticleRestore')]:
-        files[folder + '/9ba626afa44a3aa3.patch_0'] = archive({native_entry: native_sources[mode].encode()})
+        files[folder + '/9ba626afa44a3aa3.patch_0'] = archive({k: v.encode() for k, v in native_sources[mode].items()})
         files[folder + '/9ba626afa44a3aa3.patch_0.stream'] = b''
         files[folder + '/9ba626afa44a3aa3.patch_0.gpu_resources'] = b''
-    # Each mutually exclusive variant contains the same one-shot addon key;
-    # neither variant replaces boot or includes the full game-data file.
+    assert len(manifest['Options']) == 2 and manifest['Options'][0]['Name'] == 'HUD核心'
     assert len(manifest['Options'][1]['SubOptions']) == 2
-    assert manifest['Options'][0]['Name'] == 'HUD核心'
     assert not any(name.endswith(('.dl_bin', '.dll')) for name in files)
     for name, expected in inputs['assets_sha256'].items():
         data = (ROOT / 'assets/driver_hud' / name).read_bytes()
         assert hashlib.sha256(data).hexdigest() == expected
-        files['HUD/' + name] = data
+        for folder in ('HUD', 'ReticleApply', 'ReticleRestore'):
+            files[folder + '/' + name] = data
     for family in ['driver_hud', 'narrowhud200', 'monocraft', 'fusion_pixel']:
         for path in sorted((ROOT / 'third_party' / family).rglob('*')):
             if path.is_file(): files['third_party/' + family + '/' + path.relative_to(ROOT / 'third_party' / family).as_posix()] = path.read_bytes()

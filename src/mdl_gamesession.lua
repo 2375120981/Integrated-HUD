@@ -8,12 +8,15 @@ local vehicle_views_key=nil
 local active_mod=false
 local next_vehicle_error=0
 local weapon_scale=1
+local ammo_number_scale=1
+local ammo_number_scale_api=nil
 local scale_api=nil
 local network_scale_api=nil
 local network_position_apis={}
 local anchor_x,anchor_y=0,0
 local definition
 local SCALE_ID='integrated_hud.weapon_scale'
+local AMMO_NUMBER_SCALE_ID='integrated_hud.ammo_number_scale'
 local NETWORK_SCALE_ID='integrated_hud.network_scale'
 local NETWORK_POSITION={
  {key='network_x',id='integrated_hud.network_x',label='延迟面板横向位置',default=0,
@@ -48,7 +51,7 @@ end
 local function log(s)
  pcall(function()
   local base=os.getenv('APPDATA');if not base then return end
-  local f=io.open(base..'/Arrowhead/Helldivers2/IntegratedHUD-MDL-0.7.3.log','a')
+  local f=io.open(base..'/Arrowhead/Helldivers2/IntegratedHUD-MDL-0.7.4.log','a')
   if f then f:write(string.format('%.3f %s\n',clock,s));f:close()end
  end)
 end
@@ -141,7 +144,7 @@ local function frame(dt)
  if type(width)~='number'or type(height)~='number'then return end
  local s=math.min(width/1920,height/1080);local cx,cy=width/2,height/2
  anchor_x,anchor_y=cx,cy
- local v=snapshot;local base=width..'/'..height..'/'..weapon_scale..'/'
+ local v=snapshot;local base=width..'/'..height..'/'..weapon_scale..'/'..ammo_number_scale..'/'
  local key=table.concat({v.state,id(v.entity),v.kind or'',id(v.rounds),id(v.mags),id(v.heat_percent),
   tostring(v.overheated),tostring(v.ratio and math.floor(v.ratio*200+.5)),v.mode or'',v.rpm or'',v.safety or''},'/')
  if key~=last_log and clock>=next_log then last_log=key;next_log=clock+.5;log('WEAPON '..key)end
@@ -150,7 +153,7 @@ local function frame(dt)
   local c=v.kind=='heat'and(v.overheated and{235,60,45}or amber)or white
   arc(cx,cy,s,v.ratio,c)
   local number=v.kind=='heat'and(id(v.heat_percent)..'%')or(id(v.rounds)..' / '..id(v.mags))
-  label(number,cx+cfg.count_x*s,cy+cfg.count_y*s,cfg.number_height*s,white,true)
+  label(number,cx+cfg.count_x*s,cy+cfg.count_y*s,cfg.number_height*s*(v.kind=='heat'and 1 or ammo_number_scale),white,true)
   local row=0
   for mode in ((v.mode or'')..'  '):gmatch('(.-)  ')do if mode~=''then
    local x,y=cx+cfg.label_x*s,cy+(cfg.label_y-row*42)*s
@@ -190,6 +193,8 @@ local function sync_settings(ctx)
  end
  local percent=scale_api and call(scale_api.get,SCALE_ID)or settings.weapon_scale
  weapon_scale=scale_percent(percent)/100
+ local ammo_percent=ammo_number_scale_api and call(ammo_number_scale_api.get,AMMO_NUMBER_SCALE_ID)or settings.ammo_number_scale
+ ammo_number_scale=scale_percent(ammo_percent)/100
  if settings.weapon_hud~=false then
   if not reader then
    reader=require('mods/integrated_hud/mdl_gamesession/reader').new(E,log)
@@ -213,6 +218,7 @@ local function register_scale()
  -- Poll the saved value; avoid retaining on_change callbacks after disable.
  local api=rawget(_G,'ModOptionsMenu')
  scale_api=nil
+ ammo_number_scale_api=nil
  network_scale_api=nil
  network_position_apis={}
  if type(api)=='table'and type(api.get)=='function'then
@@ -221,6 +227,11 @@ local function register_scale()
    description='百分比；整体等比例缩放，固定准星中心锚点，仅影响武器 HUD。',
    min=50,max=150,step=5,default=100})
   if ok==true then scale_api=api end
+  local ammo_ok=call(api.register_option,AMMO_NUMBER_SCALE_ID,{type='slider',label='弹药数字大小',
+   mod='集成HUD',mod_id='mods/integrated_hud/mdl_gamesession/main',
+   description='百分比；仅缩放弹匣及备弹数字，固定数字中心位置，与武器 HUD 整体缩放叠加。',
+   min=50,max=150,step=5,default=100})
+  if ammo_ok==true then ammo_number_scale_api=api end
   local network_ok=call(api.register_option,NETWORK_SCALE_ID,{type='slider',label='延迟面板大小',
    mod='集成HUD',mod_id='mods/integrated_hud/mdl_gamesession/main',
    description='百分比；整体等比例缩放，仅影响延迟面板。默认位置为左侧贴边、垂直居中。',
@@ -235,13 +246,17 @@ local function register_scale()
  end
  for i=#definition.options,1,-1 do
   local key=definition.options[i].key
-  if key=='weapon_scale'or key=='network_scale'or key=='network_x'or key=='network_y'then table.remove(definition.options,i)end
+  if key=='weapon_scale'or key=='ammo_number_scale'or key=='network_scale'or key=='network_x'or key=='network_y'then table.remove(definition.options,i)end
  end
  if not scale_api then
   -- Older/configured MDL installations can still adjust the same percentage.
   definition.options[#definition.options+1]={key='weapon_scale',type='number',
    label='武器 HUD 大小',min=50,max=150,step=5,default=100}
   log('SCALE slider API unavailable; numeric setting fallback')
+ end
+ if not ammo_number_scale_api then
+  definition.options[#definition.options+1]={key='ammo_number_scale',type='number',
+   label='弹药数字大小',min=50,max=150,step=5,default=100}
  end
  if not network_scale_api then
   definition.options[#definition.options+1]={key='network_scale',type='number',
@@ -258,11 +273,12 @@ local function stop()
  active_mod=false;stop_weapon();stop_vehicle()
  if network_hud then call(network_hud.shutdown);network_hud=nil end
  scale_api=nil
+ ammo_number_scale_api=nil
  network_scale_api=nil
  network_position_apis={}
 end
 definition={
- name='集成HUD',version='0.7.3',author='2375120981',
+ name='集成HUD',version='0.7.4',author='2375120981',
  description='MDL加载；武器与载具读取无需Hub；网络延迟可选依赖HD2 Data Hub。',
  options={
   {key='weapon_hud',type='toggle',label='武器 HUD',default=true},
@@ -289,7 +305,7 @@ definition={
   log('START MDL managed; GameSession; independent HUD settings')
  end,
  on_setting=function(ctx,key,value)
-  if key=='weapon_hud'or key=='frv_hud'or key=='tank_hud'or key=='mech_hud'or key=='weapon_scale'or key=='network_hud'or key=='network_scale'or key=='network_x'or key=='network_y'then
+  if key=='weapon_hud'or key=='frv_hud'or key=='tank_hud'or key=='mech_hud'or key=='weapon_scale'or key=='ammo_number_scale'or key=='network_hud'or key=='network_scale'or key=='network_x'or key=='network_y'then
    sync_settings(ctx);log('SETTING '..key..'='..tostring(value))
   end
  end,

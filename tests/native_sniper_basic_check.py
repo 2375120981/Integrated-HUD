@@ -38,10 +38,20 @@ def check(template,literal,work):
 local env=setmetatable({},{__index=_G});env._G=env
 env.os=setmetatable({getenv=function(k)if k=='APPDATA'then return HOME end end},{__index=os})
 env.CowboyBingusModLoader={modules={['mods/integrated_hud/native_sniper_setup']=STARTUP and 'loading'or'managed'}}
+env.require=function(name)
+ assert(name=='mods/integrated_hud/native_sniper_notice')
+ return {new=function()return {update=function(state)NOTICE_STATE=state end,shutdown=function()NOTICE_CLEANED=true end}end}
+end
 local f=assert(loadstring(SOURCE));setfenv(f,env);addon=f();addon.on_enable()
 for i=1,(STOP_AFTER or 100)do addon.on_update(nil,.016)end
 addon.on_disable()
 ''')
+            state=lua.globals().NOTICE_STATE
+            text=(logs/'IntegratedHUD-NativeSniper.log').read_text(encoding='utf-8')
+            if f' {mode} SUCCESS ' in text: assert state=='success'
+            elif 'FAILED' in text: assert state=='failed'
+            elif 'DEFERRED' in text: assert state=='deferred'
+            assert lua.globals().NOTICE_CLEANED
             return target.read_bytes(),logs,(logs/'IntegratedHUD-NativeSniper.log').read_text(encoding='utf-8')
         result,logs,log=run('apply',original,'apply')
         assert result==patched and 'SUCCESS installed' in log
@@ -62,6 +72,6 @@ addon.on_disable()
         result,logs,log=run('cancel',original,'apply',stop_after=6)
         assert result==original and 'CANCELLED' in log
         assert not list(logs.glob('*.tmp'))
-    return {'native_apply_restore':True,'native_reconstruct_verified_backup':True,
+    return {'native_notice_only_after_verified_success':True,'native_apply_restore':True,'native_reconstruct_verified_backup':True,
             'native_hot_activation_refused':True,'native_disable_keeps_disk_state':True,
             'native_unknown_file_refused':True,'native_cancel_before_write':True}

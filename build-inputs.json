@@ -4,5 +4,18 @@
     "9ba626afa44a3aa3.patch_1": "b1f03deaf0a0ab25a88c28155403294fa97b45c988aef2576d79f05299a112b3",
     "9ba626afa44a3aa3.patch_1.gpu_resources": "79aac1785eedf111bf7f7ac6dde2300d4b8788873c1a1cb882665f4e9f41a664",
     "9ba626afa44a3aa3.patch_1.stream": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "native_sniper_tool": {
+    "version": "0.2.0",
+    "user_verified": true,
+    "files_sha256": {
+      "IntegratedHUD-NativeSniper-Toggle.exe": "cb054db23104732725a914dc94c499383f8a8a3d13ede39b78725dbb36cebfc2",
+      "licenses/cffi/LICENSE": "5ba24ddc57067f9249add644c3afc41a5d6dc37e23433ef759d95df370b0af63",
+      "licenses/pycparser/LICENSE": "0a9e78156ae8b96caf1b4f11ac2df424b83de29736f9e757630548a6272fdf90",
+      "licenses/pynacl/LICENSE": "77af5bbded959114b6d7a5eea518b2be364e04f4f4a95f9e87d9870c27713d24",
+      "licenses/pynacl/licenses/LICENSE.libsodium.txt": "93e7cac854d71cdafc9d9e4e9f8fd28d87ae541b3dda224d7c8fe23d37875704",
+      "licenses/Python-LICENSE.txt": "62bec384df47b0328307db41455ff6ea2559e5546b394ac69148561b21703120",
+      "licenses/PyInstaller-COPYING.txt": "0598064c7d2718e38d7914a7d08343b2fa008e3bea9ebba2aa7a6ffa5900dd64"
+    }
   }
 }
