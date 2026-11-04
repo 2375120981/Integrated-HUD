@@ -51,7 +51,7 @@ end
 local function log(s)
  pcall(function()
   local base=os.getenv('APPDATA');if not base then return end
-  local f=io.open(base..'/Arrowhead/Helldivers2/IntegratedHUD-MDL-0.7.4.log','a')
+  local f=io.open(base..'/Arrowhead/Helldivers2/IntegratedHUD-MDL-0.7.5.log','a')
   if f then f:write(string.format('%.3f %s\n',clock,s));f:close()end
  end)
 end
@@ -278,7 +278,7 @@ local function stop()
  network_position_apis={}
 end
 definition={
- name='集成HUD',version='0.7.4',author='2375120981',
+ name='集成HUD',version='0.7.5',author='2375120981',
  description='MDL加载；武器与载具读取无需Hub；网络延迟可选依赖HD2 Data Hub。',
  options={
   {key='weapon_hud',type='toggle',label='武器 HUD',default=true},

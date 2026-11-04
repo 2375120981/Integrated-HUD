@@ -26,6 +26,10 @@ G.game_object_field_batched=function(_,id)native.batch=native.batch+1;per_id[id]
 -- Use the declaration carried by the original core, not our previous adapter.
 local declaration=assert(CORE_SOURCE:match('%["9b2140378640432e"%]=%{name="supply_frv",t="3LHk6DNB",fields=%{([^}]+)%}'))
 N.object_info=function(t)
+ if FLAMER_FRV_SOURCE and t=='UnZB55KL'then
+  local spec=assert(loadstring(FLAMER_FRV_SOURCE))();local f={}
+  for i,h in ipairs(spec.fields)do f[i]={id=h}end;return {fields=f}
+ end
  if t=='3LHk6DNB'then local f={};for h in declaration:gmatch('"([0-9a-f]+)"')do f[#f+1]={id=h}end;return {fields=f}end
 end
 local pools={};local serial,created,destroyed=0,0,0;local gui_world
@@ -71,6 +75,7 @@ env=setmetatable({stingray=sr,os={getenv=function()return nil end},io={},update=
    end
    return module
   end
+  if FLAMER_FRV_SOURCE and name=='mods/integrated_hud/driver_reference/flamer_frv_data'then return assert(loadstring(FLAMER_FRV_SOURCE))()end
   if WEAPON_ART_SOURCE and name=='mods/integrated_hud/driver_reference/weapon_art'then return assert(loadstring(WEAPON_ART_SOURCE))()end
   if PRESENTATION_SOURCE and name=='mods/integrated_hud/driver_reference/weapon_presentation'then return assert(loadstring(PRESENTATION_SOURCE))()end
   if WEAPON_SOURCE and name=='mods/integrated_hud/driver_reference/weapon_reader'then
@@ -134,6 +139,34 @@ for _,rear_mask in ipairs({126,125})do
  motion=true;fields[100][15]=127
  for _=1,10 do env.update(.1)end
  for _,pool in pairs(pools)do assert(next(pool)==nil,'supply rear exit did not clear')end
+end
+if FLAMER_FRV_SOURCE then
+ -- Same proven binding and renderer, new exact schema, only two front cells.
+ G.objects_owned_by=function()native.owned=native.owned+1;return {0,10,200}end
+ types[200]='UnZB55KL';fields[200]={[10]=2900,[15]=7,[20]={509,510},[25]=2900,[26]=-1,[53]=0}
+ motion=true;for _=1,15 do env.update(.1)end
+ local function active_geometry()
+  local count,orange=0,false
+  for _,pool in pairs(pools)do for _,tri in pairs(pool)do
+   count=count+1;if tri[4][2]==255 and tri[4][3]==145 and tri[4][4]==48 then orange=true end
+  end end
+  return count,orange
+ end
+ fields[200][15]=5;motion=false;for _=1,15 do env.update(.1)end
+ local count,orange=active_geometry();assert(count>0 and orange,'flamer driver binding/highlight missing')
+ before=created;for _=1,10 do env.update(.1)end;assert(created==before,'stable flamer GUI rebuilt')
+ fields[200][15]=3;for _=1,10 do env.update(.1)end
+ count,orange=active_geometry();assert(count>0 and orange,'flamer passenger binding/highlight missing')
+ fields[200][15]=6;for _=1,10 do env.update(.1)end
+ assert(active_geometry()==0,'flamer gunner should not draw vehicle HUD')
+ fields[200][15]=5;for _=1,10 do env.update(.1)end
+ assert(active_geometry()>0,'flamer front HUD did not recover from gunner')
+ motion=true;fields[200][15]=7;for _=1,10 do env.update(.1)end
+ assert(active_geometry()==0,'flamer exit left stale HUD')
+ types[200]=nil;fields[200]=nil
+ G.objects_owned_by=function()native.owned=native.owned+1;return {0,10,100}end
+ measurements.flamer_front_seats_and_gunner_hidden=true
+ measurements.flamer_cached_gui_and_exit=true
 end
 if STYLE_SOURCE then
  -- The styled tank still uses the original core's binding, GUI and cleanup.

@@ -34,7 +34,13 @@ def vehicle_source():
                    '  if M.integrated_mech_prewarm then M.integrated_mech_prewarm(session,avatar,world,owned_ids)end\n  M.preseat_owned=set')
     core = replace(core, 'if not stable or not cached or M.clock>=cached.until_time then',
                    'if not cached or M.clock>=cached.until_time then')
-    extensions = ['driver_own_style', 'driver_seat_acquisition', 'driver_tank_acquisition',
+    core = replace(core,
+                   "local function seat_key(kind,p)return kind=='FRV'and p and p.name=='hmg_frv'and'HMG'or kind end",
+                   "local function seat_key(kind,p)return kind=='FRV'and p and(p.seat_kind or(p.name=='hmg_frv'and'HMG'))or kind end")
+    core = replace(core,
+                   "local index=p.name=='hmg_frv'and 53 or p.name=='supply_frv'and 52",
+                   "local index=p.wheel_damage_index or(p.name=='hmg_frv'and 53 or p.name=='supply_frv'and 52)")
+    extensions = ['driver_own_style', 'driver_seat_acquisition', 'driver_flamer_frv', 'driver_tank_acquisition',
                   'driver_mech_hud', 'driver_performance', 'driver_visibility']
     core = replace(core, '-- Diagnostics attachment API 1.',
                    '\n'.join(read('src/' + n + '.lua') for n in extensions) + '\n-- Diagnostics attachment API 1.')
@@ -69,6 +75,8 @@ def main():
     gs, size = pe(args.game_root / 'data/game/game.dll')
     es, _ = pe(args.game_root / 'bin/helldivers2.exe')
     assert f'{gs:08X}:{size:08X}:{es:08X}' == cfg['pe_key']
+    flamer = json.loads(read('data/flamer_frv.json'))
+    assert resource_hash(flamer['type']) >> 32 == int(flamer['network_type_hash'], 16)
     entry = BASE + 'main'
     sources = {
         entry: read('src/mdl_gamesession.lua'),
@@ -84,6 +92,7 @@ def main():
         BASE + 'layout': 'return ' + lua_value(json.loads(read('layout/weapon.json'))),
         PREFIX + 'driver_core': vehicle_source(),
         PREFIX + 'mech_binding': read('src/mech_binding.lua'),
+        PREFIX + 'flamer_frv_data': 'return ' + lua_value(json.loads(read('data/flamer_frv.json'))),
     }
     for page in sorted((ROOT / 'data/network_font').glob('*.json')):
         if page.stem != 'index':
@@ -144,7 +153,7 @@ def main():
                'local core=create()\nupdate=core.update\nshutdown=core.shutdown\nreturn core')
     for key, value in {'CORE_SOURCE': wrapper, 'STYLE_SOURCE': sources[PREFIX + 'own_style_data'],
                        'MECH_STYLE_SOURCE': sources[PREFIX + 'mech_style_data'],
-                       'MECH_BINDING_SOURCE': sources[PREFIX + 'mech_binding'], 'PERF_EXPECTED': True}.items():
+                       'MECH_BINDING_SOURCE': sources[PREFIX + 'mech_binding'], 'FLAMER_FRV_SOURCE': sources[PREFIX + 'flamer_frv_data'], 'PERF_EXPECTED': True}.items():
         vehicle_test.globals()[key] = value
     workflow = read('tests/driver_reference_basic_check.lua').replace(
         'assert(result.installed and env.__DRIVER_HUD_INSTALLED)',
@@ -157,6 +166,7 @@ def main():
               'chef_required': False, 'hd2data_required': False, 'hd2data_optional_features': ['network_ping'],
               'network_ping_reader': '0.6.9 logic: session/connection gates + HD2Data roster + Network.ping + diagnostics', 'ffi_required': False,
               'vehicle_hud_enabled': True, 'mech_hud_enabled': True,
+              'flamer_frv': {'front_seats_only': True, 'driver_bit': 2, 'passenger_bit': 4, 'gunner_bit': 1, 'user_verified': True, 'validated_as': 'standalone MDL hot-loaded test before integration'},
               'runtime_verified': False, 'deployed': False, 'boot_override': False,
               'checksum_sidecars': False, 'basic_checks': checks,
               'native_sniper': {'tool_version': inputs['native_sniper_tool']['version'],
@@ -171,7 +181,7 @@ def main():
     assert resource_hash('boot') not in [struct.unpack_from('<Q', patch, 104 + i * 80)[0] for i in range(count)]
     manifest = {'Version': 1, 'Guid': '61710665-8698-4f23-bff7-00fbd715b2d8',
                 'Name': '集成HUD MDL ' + VERSION,
-                'Description': '管理器提供准星开启/关闭一次性启动任务，成功后屏幕中央提示重启及取消选项；不兼容数据可使用随包NativeSniperTool独立修复工具。MDL加载及启停，支持武器、FRV、坦克和机甲HUD独立实时开关及武器HUD整体大小、弹匣/备弹数字独立大小及左侧锚定的延迟面板独立缩放、横向位置及纵向位置滑动条；网络延迟可选依赖HD2 Data Hub，左侧紧凑双列以玩家名或peer标识RTT，标题右边缘纵向分隔，长名字截短，支持舰船阶段尝试采样及装备/菜单界面常显，中途加入临时会话回退到连接peer，原生编号待适配，不扫描远端对象；GameSession读取武器弹药/热量/功能模式/射速/背包供弹；恢复FRV、坦克及机甲HUD。武器采用Monocraft及自带图标，延迟面板采用支持中英文的Fusion Pixel；换弹隐藏武器HUD。核心依赖MDL3，无需Chef；延迟功能另需HD2 Data Hub。',
+                'Description': '管理器提供准星开启/关闭一次性启动任务，成功后屏幕中央提示重启及取消选项；不兼容数据可使用随包NativeSniperTool独立修复工具。MDL加载及启停，支持武器、FRV、坦克和机甲HUD独立实时开关及武器HUD整体大小、弹匣/备弹数字独立大小及左侧锚定的延迟面板独立缩放、横向位置及纵向位置滑动条；网络延迟可选依赖HD2 Data Hub，左侧紧凑双列以玩家名或peer标识RTT，标题右边缘纵向分隔，长名字截短，支持舰船阶段尝试采样及装备/菜单界面常显，中途加入临时会话回退到连接peer，原生编号待适配，不扫描远端对象；GameSession读取武器弹药/热量/功能模式/射速/背包供弹；FRV支持机枪型、补给型及喷火型前座；喷火型显示两个前座，机枪位不显示载具HUD。恢复坦克及机甲HUD。武器采用Monocraft及自带图标，延迟面板采用支持中英文的Fusion Pixel；换弹隐藏武器HUD。核心依赖MDL3，无需Chef；延迟功能另需HD2 Data Hub。',
                 'Options': [
                     {'Name': 'HUD核心',
                      'Description': '武器、载具及可选Hub延迟HUD；支持MDL局内启停及设置。狙击枪准星可选择下方一次性任务；亦随包提供独立修复工具。',
