@@ -5,8 +5,9 @@
   "above_tag_center": 22,
   "local_tag_center_y": 1008,
   "last_teammate_tag_center_y": 902,
-  "teammate_row_spacing": 44,
-  "row_order": "local player at bottom; other players in ascending Hub slot order",
-  "note": "0.8.5 layout and 150% icon size verified in game by the user; other native HUD scales may need calibration.",
-  "user_verified": true
+  "teammate_row_spacing": 54,
+  "row_order": "local at bottom; other players descending validated native player index",
+  "note": "0.8.10 native index mapping, blood-bar placement and RTT peer-joined icons confirmed correct by user. 0.8.11 adds display controls without changing mapping.",
+  "user_verified": true,
+  "native_identity_user_verified": true
 }

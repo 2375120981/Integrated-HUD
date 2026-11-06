@@ -44,7 +44,7 @@ end
 local function log(s)
  pcall(function()
   local base=os.getenv('APPDATA');if not base then return end
-  local f=io.open(base..'/Arrowhead/Helldivers2/IntegratedHUD-MDL-0.8.5.log','a')
+  local f=io.open(base..'/Arrowhead/Helldivers2/IntegratedHUD-MDL-0.8.11.log','a')
   if f then f:write(string.format('%.3f %s\n',clock,s));f:close()end
  end)
 end
@@ -81,10 +81,17 @@ end
 local function sync_settings(ctx)
  if not active_mod then return end
  local settings=type(ctx)=='table'and type(ctx.settings)=='table'and ctx.settings or{}
- if settings.network_hud==true then
+ local mode=settings.booster_display
+ if mode~='仅血条'and mode~='仅列表'and mode~='血条+列表'then mode='血条+列表'end
+ local enabled=settings.booster_hud~=false
+ local blood_boosters=enabled and mode~='仅列表'
+ local list_boosters=enabled and mode~='仅血条'
+ local latency=settings.network_hud==true
+ if latency or list_boosters then
   if not network_hud then network_hud=require('mods/integrated_hud/mdl_gamesession/network_ping_hud').new(E,log)end
  elseif network_hud then call(network_hud.shutdown);network_hud=nil end
  if network_hud then
+  network_hud.set_content(latency,list_boosters)
   local percent=network_scale_api and call(network_scale_api.get,NETWORK_SCALE_ID)or settings.network_scale
   network_hud.set_scale(scale_percent(percent)/100)
   local position={}
@@ -94,7 +101,7 @@ local function sync_settings(ctx)
   end
   network_hud.set_position(position[1],position[2])
  end
- if settings.booster_hud~=false then
+ if blood_boosters then
   if not booster_hud then booster_hud=require('mods/integrated_hud/mdl_gamesession/squad_boosters').new(E,log)end
  elseif booster_hud then call(booster_hud.shutdown);booster_hud=nil end
  local percent=scale_api and call(scale_api.get,SCALE_ID)or settings.weapon_scale
@@ -185,7 +192,7 @@ local function stop()
  network_position_apis={}
 end
 definition={
- name='集成HUD',version='0.8.5',author='2375120981',
+ name='集成HUD',version='0.8.11',author='2375120981',
  description='需要 MDL dev43 与 HD2 Data Hub 0.6.0；MDL GUI 绘制全部 HUD，Hub 读取手持武器及弹药。',
  options={
   {key='weapon_hud',type='toggle',label='武器 HUD',default=true},
@@ -193,7 +200,8 @@ definition={
   {key='tank_hud',type='toggle',label='坦克 HUD',default=true},
   {key='mech_hud',type='toggle',label='机甲 HUD',default=true},
   {key='booster_hud',type='toggle',label='小队强化图标',default=true},
-  {key='network_hud',type='toggle',label='网络延迟',default=false},
+  {key='booster_display',type='choice',label='强化显示位置',choices={'仅血条','仅列表','血条+列表'},default='血条+列表'},
+  {key='network_hud',type='toggle',label='延迟数字',default=false},
   {key='network_note',type='text',label='武器、强化与延迟显示需启用 Hub 0.6.0',default=''},
   {key='hot_toggle_note_1',type='text',label='局内热切换后可能需要',default=''},
   {key='hot_toggle_note_2',type='text',label='上下车或武器开火刷新状态',default=''}
@@ -213,7 +221,7 @@ definition={
   log('START MDL dev43 GUI; Hub 0.6 weapon identity/ammo; GameSession vehicle and weapon settings')
  end,
  on_setting=function(ctx,key,value)
-  if key=='booster_hud'or key=='weapon_hud'or key=='frv_hud'or key=='tank_hud'or key=='mech_hud'or key=='weapon_scale'or key=='ammo_number_scale'or key=='network_hud'or key=='network_scale'or key=='network_x'or key=='network_y'then
+  if key=='booster_display'or key=='booster_hud'or key=='weapon_hud'or key=='frv_hud'or key=='tank_hud'or key=='mech_hud'or key=='weapon_scale'or key=='ammo_number_scale'or key=='network_hud'or key=='network_scale'or key=='network_x'or key=='network_y'then
    sync_settings(ctx);log('SETTING '..key..'='..tostring(value))
   end
  end,

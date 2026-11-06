@@ -123,7 +123,7 @@ d.shutdown()
 local net={state='READY',rows={{peer='1',label='中文，Very long player',ms=40},{peer='2',label='Name',ms=210}}}
 overrides[B..'network_ping']={new=function()return{read=function()return net end,shutdown=function()end}end}
 local ping=env.require(B..'network_ping_hud').new(E,function()end)
-ping.update(0);assert(count('text')==5 and count('line')==1)
+ping.update(0);assert(count('text')==5 and count('line')==0)
 local texts=text_items();assert(texts[2][1]~='中文，Very long player'and texts[2][1]:find('中文',1,true),'UTF8 prefix failed')
 local oldx,oldy=texts[1][2],texts[1][3]
 ping.set_position(50,25);ping.update(1);texts=text_items();assert(texts[1][2]>oldx and texts[1][3]<oldy)
@@ -139,7 +139,7 @@ local current=v
 overrides[B..'reader']={new=function()return{reset=function()end,read=function()reads=reads+1;return current end,shutdown=function()end}end}
 overrides['mods/integrated_hud/driver_reference/driver_core']=function()return{
  update=function()vehicle_updates=vehicle_updates+1 end,set_views=function()end,shutdown=function()vehicle_stops=vehicle_stops+1 end}end
-local mod=env.require(B..'main');local ctx={settings={}}
+local mod=env.require(B..'main');local ctx={settings={booster_hud=false}}
 mod.on_enable(ctx);cursor=false;mod.on_update(ctx,.1);assert(reads==1 and vehicle_updates==1 and count()>0)
 ctx.settings.weapon_hud=false;mod.on_setting(ctx,'weapon_hud',false);assert(count()==0)
 mod.on_disable();assert(vehicle_stops==1 and count()==0)
@@ -155,26 +155,131 @@ local booster_provider={ready=function()return booster_ready end,
  mission=function()return{in_mission=true,epoch=1}end,
  players=function(detail)assert(detail==false);return squad end,buffs=function()return buffs end}
 env.HD2Data=booster_provider;cursor=false
+-- More than 256 host-owned objects: scan incrementally, then reuse IDs.
+local native_index={[bp1]=1,[bp2]=0,[bp3]=3}
+local owner={[11]=bp1,[12]=bp2,[13]=bp3}
+local ids={[bp1]=11,[bp2]=12,[bp3]=13}
+local exists_checks,owned_calls=0,0
+E.Network={peer_id=function()return bp3 end,game_session=function()return 7 end}
+local index_id=newproxy(true);getmetatable(index_id).__tostring=function()return '[IdString32]'end
+E.IdString32={to_hex=function(v)assert(v==index_id);return 'b03b8bce'end}
+E.Network.object_info=function(t)assert(t=='un6y1d');return{fields={{id=index_id}}}end
+E.GameSession={in_session=function(s)return s==7 end,
+ objects_owned_by=function(s,p)
+  owned_calls=owned_calls+1;local out={ids[p]}
+  if p==bp2 then for i=1000,1299 do out[#out+1]=i end end
+  return out
+ end,
+ game_object_exists=function(s,id)exists_checks=exists_checks+1;return owner[id]~=nil end,
+ game_object_is_type=function(s,id,t)return owner[id]~=nil and t=='un6y1d'end,
+ game_object_owner=function(s,id)return owner[id]end,
+ game_object_field=function(s,id,f)assert(f=='index');return native_index[owner[id]]end}
 local booster_log={}
 local boosters=env.require(B..'squad_boosters').new(E,function(v)booster_log[#booster_log+1]=v end)
-boosters.update(0);assert(count('image')==2 and count('line')==6,'individual booster/empty hex missing')
+boosters.update(0);assert(count('image')==1 and count('line')==0,'pending identity must keep only local booster')
+local bt=2.01
+for i=1,20 do
+ local before=exists_checks;boosters.update(bt)
+ assert(exists_checks-before<=40,'identity scan exceeded per-update budget')
+ bt=bt+.21
+end
+assert(count('image')==2 and count('line')==6,'large host object list blocked native mapping')
 local booster_images={}
 for _,c in ipairs(canvases)do if c.opts.layer==45 then for _,i in ipairs(c.items)do
  if i.kind=='image'then booster_images[#booster_images+1]=i.args end
 end end end
-assert(booster_images[1][1]:find('vitality',1,true)and booster_images[2][1]:find('stamina',1,true),'shuffled peer association misplaced booster')
+assert(booster_images[1][1]:find('vitality',1,true)and booster_images[2][1]:find('stamina',1,true),'peer association misplaced booster')
 local spec=env.require(B..'booster_layout')
 assert(booster_images[2][2]+spec.icon_size<spec.tag_left,'booster overlaps colored label')
-assert(booster_images[2][3]+spec.icon_size<spec.local_tag_center_y,'booster not above microphone/label row')
-local old=finishes;squad={squad[2],squad[1],squad[3]};boosters.update(.21)
-assert(finishes==old,'roster iteration order changed displayed rows')
--- Missing member data is not confirmation of no booster.
-buffs.players={buffs.players[2],buffs.players[3]};boosters.update(.42)
-assert(count('image')==2 and count('line')==0,'unknown booster data rendered as unequipped')
--- No icon may survive Hub shutdown or an ambiguous roster.
-booster_ready=false;boosters.update(.5);assert(count()==0)
-booster_ready=true;squad[3]=squad[1];boosters.update(.7);assert(count()==0,'duplicate peer roster was accepted')
+assert(booster_images[2][3]+spec.icon_size<spec.local_tag_center_y,'booster not above label row')
+local old_owned=owned_calls;local old=finishes
+squad={squad[2],squad[1],squad[3]};boosters.update(bt);bt=bt+.21
+assert(finishes==old and owned_calls==old_owned,'cached identity rescanned on shuffled Hub roster')
+buffs.players={buffs.players[2],buffs.players[3]};boosters.update(bt);bt=bt+.21
+assert(count('image')==2 and count('line')==0,'unknown data rendered as unequipped')
+booster_ready=false;boosters.update(bt);bt=bt+.21;assert(count()==0)
+booster_ready=true;squad[3]=squad[1];boosters.update(bt);assert(count()==0,'duplicate peer accepted')
 boosters.shutdown();assert(count()==0)
-return {squad_boosters_peer_join_and_self=true,squad_boosters_native_images_and_empty_hex=true,squad_boosters_unknown_and_cleanup=true,squad_boosters_upper_left_anchor=true,hub_exact_weapon_no_firing_needed=true,hub_network_ids_separated=true,hub_backpack_fallback_no_double_count=true,hub_backpack_lease_warm_and_pickup_refresh=true,vehicle_hp_measured_center_and_75pct_size=true,hub_heat_magazine_switch=true,hub_backpack_reserve_passthrough=true,
+-- Four players: native C3,A2,N1 rows disagree with Hub slots 1,2,3.
+local bp4='4444444444444444';owner[14]=bp4;ids[bp4]=14
+native_index[bp1]=0;native_index[bp2]=2;native_index[bp4]=1
+squad={{peer=bp3,slot=0,is_local=true},{peer=bp1,slot=1,is_local=false},
+ {peer=bp2,slot=2,is_local=false},{peer=bp4,slot=3,is_local=false}}
+buffs.players={}
+for _,p in ipairs(squad)do buffs.players[#buffs.players+1]={peer=p.peer,slot=p.slot,is_local=p.is_local,
+ booster={id=1,name=({[bp1]='Stamina',[bp2]='HellpodSpaceOptimization',[bp4]='CombatDrugs',[bp3]='Vitality'})[p.peer]}}end
+boosters=env.require(B..'squad_boosters').new(E)
+bt=10;boosters.update(bt)
+for i=1,30 do bt=bt+.21;boosters.update(bt)end
+local function image_names(layer)
+ local out={};for _,c in ipairs(canvases)do if c.opts.layer==layer then for _,i in ipairs(c.items)do
+  if i.kind=='image'then out[#out+1]=i.args[1]end
+ end end end;return out
+end
+local names=image_names(45)
+assert(#names==4 and names[1]:find('hellpodspaceoptimization',1,true)
+ and names[2]:find('combatdrugs',1,true)and names[3]:find('stamina',1,true),'native index order ignored')
+native_index[bp4]=native_index[bp2];boosters.update(bt+2.1)
+assert(count('image')==1,'duplicate native index must hide teammate icons')
+boosters.shutdown();assert(count()==0)
+-- RTT comparison path has no native scan and joins by peer, not RTT/Hub order.
+local function forbidden()error('RTT booster attempted native scan')end
+E.Network=setmetatable({},{__index=function()return forbidden end})
+E.GameSession=setmetatable({},{__index=function()return forbidden end})
+net={state='READY',rows={{peer=bp4,label='Andew',ms=119},{peer=bp1,label='neo',ms=41},{peer=bp2,label='charlie',ms=124}}}
+ping=env.require(B..'network_ping_hud').new(E,function()end)
+local ping_reads=0
+overrides[B..'network_ping']={new=function()return{read=function()ping_reads=ping_reads+1;return net end,shutdown=function()end}end}
+ping.shutdown();ping=env.require(B..'network_ping_hud').new(E,function()end)
+ping.update(0);names=image_names(70)
+assert(#names==3 and names[1]:find('combatdrugs',1,true)and names[2]:find('stamina',1,true)
+ and names[3]:find('hellpodspaceoptimization',1,true),'RTT boosters not joined to displayed peers')
+assert(count('line')==0,'RTT divider was not replaced')
+local icon_before=nil
+for _,c in ipairs(canvases)do if c.opts.layer==70 then for _,i in ipairs(c.items)do
+ if i.kind=='image'and not icon_before then icon_before=i.args end
+end end end
+ping.set_scale(1.5);ping.update(.1)
+for _,c in ipairs(canvases)do if c.opts.layer==70 then for _,i in ipairs(c.items)do
+ if i.kind=='image'then assert(i.args[4]==icon_before[4]*1.5,'RTT icon scaling inconsistent')end
+end end end
+-- Switch columns live: booster-only skips RTT reads; RTT-only omits icons.
+local reads_before=ping_reads
+ping.set_content(false,true);ping.update(.15)
+assert(ping_reads==reads_before and #image_names(70)==3 and #text_items()==4,'booster-only panel must retain identities/icons without RTT calls')
+for _,t in ipairs(text_items())do assert(not t[1]:find('ms',1,true),'hidden RTT text remained')end
+ping.set_content(true,false);ping.update(.16)
+assert(#image_names(70)==0 and #text_items()==7,'RTT-only panel retained booster icons')
+ping.set_content(false,false);ping.update(.17);assert(count()==0,'both columns off must hide entire panel')
+ping.set_content(false,true);ping.update(.18);assert(#image_names(70)==3,'list did not restore after hiding')
+booster_ready=false;ping.update(.4);assert(count('image')==0,'Hub shutdown left RTT boosters visible')
+ping.shutdown();assert(count()==0)
+-- MDL three-way choice routes blood-bar/list renderers independently of RTT.
+local panel_live,blood_live=false,false;local shown_latency,shown_list=nil,nil
+local function noop()end
+overrides[B..'network_ping_hud']={new=function()
+ panel_live=true
+ return{set_content=function(a,b)shown_latency=a;shown_list=b end,set_scale=noop,set_position=noop,update=noop,
+ shutdown=function()panel_live=false end}
+end}
+overrides[B..'squad_boosters']={new=function()
+ blood_live=true;return{update=noop,shutdown=function()blood_live=false end}
+end}
+local modes={'仅血条','仅列表','血条+列表'}
+ctx={settings={weapon_hud=false,frv_hud=false,tank_hud=false,mech_hud=false,booster_hud=true}}
+mod.on_enable(ctx)
+for _,mode in ipairs(modes)do for _,latency in ipairs({false,true})do
+ ctx.settings.booster_display=mode;ctx.settings.network_hud=latency
+ mod.on_setting(ctx,'booster_display',mode)
+ local list=mode~='仅血条';local blood=mode~='仅列表'
+ assert(blood_live==blood and panel_live==(latency or list),'MDL mode routed to wrong renderer')
+ if panel_live then assert(shown_latency==latency and shown_list==list,'MDL column flags changed meaning')end
+end end
+ctx.settings.booster_hud=false;ctx.settings.network_hud=false;mod.on_setting(ctx,'booster_hud',false)
+assert(not blood_live and not panel_live,'all display options off left a panel alive')
+ctx.settings.network_hud=true;mod.on_setting(ctx,'network_hud',true)
+assert(panel_live and shown_latency and not shown_list and not blood_live,'booster master interfered with RTT')
+mod.on_disable();assert(not panel_live and not blood_live)
+return {booster_three_modes_and_panel_visibility=true,squad_boosters_incremental_native_index_and_cache=true,network_boosters_peer_join_no_native_scan=true,squad_boosters_peer_join_and_self=true,squad_boosters_native_images_and_empty_hex=true,squad_boosters_unknown_and_cleanup=true,squad_boosters_upper_left_anchor=true,hub_exact_weapon_no_firing_needed=true,hub_network_ids_separated=true,hub_backpack_fallback_no_double_count=true,hub_backpack_lease_warm_and_pickup_refresh=true,vehicle_hp_measured_center_and_75pct_size=true,hub_heat_magazine_switch=true,hub_backpack_reserve_passthrough=true,
  hub_reload_hidden=true,hub_respawn_and_disable_clear=true,mdl_native_text_and_images=true,mdl_weapon_fixed_anchor_scale=true,
  mdl_vehicle_adapter=true,mdl_ping_unicode_and_position=true,mdl_one_shot_notice=true,mdl_lifecycle_cleanup=true}

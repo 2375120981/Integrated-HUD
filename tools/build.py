@@ -122,6 +122,9 @@ def main():
         BASE + 'weapon_view': read('src/mdl_weapon_view.lua'),
         BASE + 'network_ping': read('src/network_ping.lua'),
         BASE + 'squad_boosters': read('src/squad_boosters.lua'),
+        BASE + 'squad_identity': read('src/squad_identity.lua'),
+        BASE + 'booster_data': read('src/booster_data.lua'),
+        BASE + 'booster_icon': read('src/booster_icon.lua'),
         BASE + 'booster_layout': 'return ' + lua_value(json.loads(read('layout/boosters.json'))),
         BASE + 'booster_images': 'return ' + lua_value({n: BASE + 'img/booster_' + n.lower() for n in json.loads(read('data/booster_icons.json'))['names']}),
         BASE + 'network_ping_hud': read('src/network_ping_hud.lua'),
@@ -192,7 +195,7 @@ def main():
               'loader': 'MDL3', 'weapon_reader': 'HD2 Data Hub 0.6 held entity/ammo/heat/reload; unique local carried-slot network binding for settings',
               'chef_required': False, 'hd2data_required': True, 'hd2data_minimum': '0.6.0', 'renderer': 'MDL3.gui api 1', 'mdl_minimum': 'dev43',
               'network_ping_reader': '0.6.9 logic: session/connection gates + HD2Data roster + Network.ping + diagnostics', 'ffi_required': False,
-              'squad_boosters': {'api': 'HD2Data.buffs + players(false)', 'identity': 'peer join', 'native_icon_count': 20, 'native_hud_alignment_verified': json.loads(read('layout/boosters.json')).get('user_verified', False)},
+              'squad_boosters': {'api': 'HD2Data.buffs + players(false)', 'identity': 'peer join', 'healthbar_row': 'validated native player/index', 'candidate_budget_per_update': 24, 'rtt_panel': 'peer-joined teammate icons replace divider', 'native_icon_count': 20, 'native_hud_alignment_verified': json.loads(read('layout/boosters.json')).get('user_verified', False)},
               'vehicle_hud_enabled': True, 'mech_hud_enabled': True, 'vehicle_health_text_scale': 1.5, 'vehicle_health_center': 'measured final-size text width; explicit left origin',
               'flamer_frv': {'front_seats_only': True, 'driver_bit': 2, 'passenger_bit': 4, 'gunner_bit': 1, 'reader_previously_user_verified': True, 'mdl_gui_runtime_verified': False},
               'runtime_verified': False, 'deployed': False, 'boot_override': False,
@@ -212,7 +215,7 @@ def main():
     assert resource_hash('boot') not in [struct.unpack_from('<Q', patch, 72 + struct.unpack_from('<I', patch, 4)[0] * 32 + i * 80)[0] for i in range(count)]
     manifest = {'Version': 1, 'Guid': '61710665-8698-4f23-bff7-00fbd715b2d8',
                 'Name': '集成HUD MDL ' + VERSION,
-                'Description': '需要MDL dev43及HD2 Data Hub 0.6.0。全部HUD使用MDL GUI绘制及游戏菜单字体；Hub直接读取手持武器、弹量、备弹、热量和换弹状态，换弹隐藏。载具及模式射速保留补充读取。小队强化读取Hub逐成员信息，原生强化图标位于彩色标签左上角，无强化为空心六边形；支持独立启停、武器整体及弹药数字缩放、延迟面板缩放和位置调整；保留管理器狙击准星一次性启用/关闭及独立修复工具。0.8.5当前布局已通过用户实机验证。',
+                'Description': '需要MDL dev43及HD2 Data Hub 0.6.0。全部HUD使用MDL GUI绘制及游戏菜单字体；Hub直接读取手持武器、弹量、备弹、热量和换弹状态，换弹隐藏。载具及模式射速保留补充读取。小队强化读取Hub逐成员信息，原生强化图标位于彩色标签左上角，无强化为空心六边形；支持独立启停、武器整体及弹药数字缩放、延迟面板缩放和位置调整；保留管理器狙击准星一次性启用/关闭及独立修复工具。0.8.11强化可选仅血条/仅列表/血条+列表，延迟数字独立开关；延迟与列表强化均关闭时隐藏面板。',
                 'Options': [
                     {'Name': 'HUD核心',
                      'Description': 'Hub武器、MDL绘制载具及延迟HUD；支持MDL局内启停及设置。狙击枪准星可选择下方一次性任务；亦随包提供独立修复工具。',
