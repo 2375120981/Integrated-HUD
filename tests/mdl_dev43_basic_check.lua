@@ -143,6 +143,38 @@ local mod=env.require(B..'main');local ctx={settings={}}
 mod.on_enable(ctx);cursor=false;mod.on_update(ctx,.1);assert(reads==1 and vehicle_updates==1 and count()>0)
 ctx.settings.weapon_hud=false;mod.on_setting(ctx,'weapon_hud',false);assert(count()==0)
 mod.on_disable();assert(vehicle_stops==1 and count()==0)
-return {hub_exact_weapon_no_firing_needed=true,hub_network_ids_separated=true,hub_backpack_fallback_no_double_count=true,hub_backpack_lease_warm_and_pickup_refresh=true,vehicle_hp_measured_center_and_75pct_size=true,hub_heat_magazine_switch=true,hub_backpack_reserve_passthrough=true,
+-- Booster provider: join shuffled arrays by peer; keep self on its own row.
+local bp1,bp2,bp3='1111111111111111','2222222222222222','3333333333333333'
+local squad={{peer=bp3,slot=2,is_local=true,name='Self'},
+ {peer=bp2,slot=1,is_local=false,name='Other 2'},{peer=bp1,slot=0,is_local=false,name='Other 1'}}
+local buffs={players={{peer=bp1,slot=0,is_local=false},
+ {peer=bp3,slot=2,is_local=true,booster={id=2,name='Stamina'}},
+ {peer=bp2,slot=1,is_local=false,booster={id=1,name='Vitality'}}}}
+local booster_ready=true
+local booster_provider={ready=function()return booster_ready end,
+ mission=function()return{in_mission=true,epoch=1}end,
+ players=function(detail)assert(detail==false);return squad end,buffs=function()return buffs end}
+env.HD2Data=booster_provider;cursor=false
+local booster_log={}
+local boosters=env.require(B..'squad_boosters').new(E,function(v)booster_log[#booster_log+1]=v end)
+boosters.update(0);assert(count('image')==2 and count('line')==6,'individual booster/empty hex missing')
+local booster_images={}
+for _,c in ipairs(canvases)do if c.opts.layer==45 then for _,i in ipairs(c.items)do
+ if i.kind=='image'then booster_images[#booster_images+1]=i.args end
+end end end
+assert(booster_images[1][1]:find('vitality',1,true)and booster_images[2][1]:find('stamina',1,true),'shuffled peer association misplaced booster')
+local spec=env.require(B..'booster_layout')
+assert(booster_images[2][2]+spec.icon_size<spec.tag_left,'booster overlaps colored label')
+assert(booster_images[2][3]+spec.icon_size<spec.local_tag_center_y,'booster not above microphone/label row')
+local old=finishes;squad={squad[2],squad[1],squad[3]};boosters.update(.21)
+assert(finishes==old,'roster iteration order changed displayed rows')
+-- Missing member data is not confirmation of no booster.
+buffs.players={buffs.players[2],buffs.players[3]};boosters.update(.42)
+assert(count('image')==2 and count('line')==0,'unknown booster data rendered as unequipped')
+-- No icon may survive Hub shutdown or an ambiguous roster.
+booster_ready=false;boosters.update(.5);assert(count()==0)
+booster_ready=true;squad[3]=squad[1];boosters.update(.7);assert(count()==0,'duplicate peer roster was accepted')
+boosters.shutdown();assert(count()==0)
+return {squad_boosters_peer_join_and_self=true,squad_boosters_native_images_and_empty_hex=true,squad_boosters_unknown_and_cleanup=true,squad_boosters_upper_left_anchor=true,hub_exact_weapon_no_firing_needed=true,hub_network_ids_separated=true,hub_backpack_fallback_no_double_count=true,hub_backpack_lease_warm_and_pickup_refresh=true,vehicle_hp_measured_center_and_75pct_size=true,hub_heat_magazine_switch=true,hub_backpack_reserve_passthrough=true,
  hub_reload_hidden=true,hub_respawn_and_disable_clear=true,mdl_native_text_and_images=true,mdl_weapon_fixed_anchor_scale=true,
  mdl_vehicle_adapter=true,mdl_ping_unicode_and_position=true,mdl_one_shot_notice=true,mdl_lifecycle_cleanup=true}

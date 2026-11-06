@@ -1,6 +1,6 @@
 # 来源与署名
 
-Integrated HUD 0.8.3：2375120981。加载、启停和全部绘制使用 MDL3；武器身份／弹药／热量／换弹使用 HD2 Data Hub 0.6.0；载具及武器设置保留 GameSession 补充读取。未包含 HD2 Data Hub、MDL 或 Chef 加载器。
+Integrated HUD 0.8.5：2375120981。加载、启停和全部绘制使用 MDL3；武器身份／弹药／热量／换弹使用 HD2 Data Hub 0.6.0；载具及武器设置保留 GameSession 补充读取。未包含 HD2 Data Hub、MDL 或 Chef 加载器。
 
 - **Based on NarrowHUD 2.0.0 by luka189**，来源 https://github.com/luka189/NarrowHUD 。本版提取武器字段／类型数据、射速种子及模式／射速规则，仅在 Hub 指定槽位与本地携带网络对象唯一关联后补充读取。原姿态／行为关联、开火与切枪识别、弹药整理和热量模型已停用且不打入运行包；历史来源文件仍用于构建元数据。不使用原菜单、布局和 HUD 绘制。完整许可与原始源码哈希见 `third_party/narrowhud200/`。衍生代码必须免费提供、保留署名和许可，不适用 DRIVER 核心的 MIT 许可。
 - **DRIVER HUD 1.6 by FireScallion**：`src/vendor/driver_hud_160.lua` 保留原始核心，构建时注入本项目载具布局、机甲关联／绘制、座位修复、坦克发现及既有性能精简，并改为 MDL 管理的回调和 MDL3.gui 绘制；数字改用游戏菜单字体。完整 MIT 许可及第三方范围见 `third_party/driver_hud/`。
@@ -13,3 +13,5 @@ Integrated HUD 0.8.3：2375120981。加载、启停和全部绘制使用 MDL3；
 游戏资源、名称、武器图标和接口标识属于各自权利人。本仓库不包含游戏 DLL、原版 boot 或完整游戏资源包。第三方素材不因本项目发布而重新许可。
 
 - **独立准星工具 NativeSniper Toggle 0.2.0**：离线容器解码参考用户提供的 SHODAN Stat Editor Offline；字段定义参考 [FileDiver](https://github.com/xypwn/filediver/tree/master/datalibrary)。使用 PyNaCl/libsodium、cffi、pycparser、Python 和 PyInstaller；便携运行时及第三方依赖许可保留在 `assets/native_sniper_tool/licenses/`，发布包对应 `NativeSniperTool/licenses/`。工具源码及校验求解器见 `tools/native_sniper/`，不附带完整游戏数据或 DLL。
+
+- **强化图标**：来自本地游戏原生 `content/ui/shared/resources/generated_icons/booster_icons`，构建时保持原始矢量图案与颜色转换为 MDL GUI 图片；图标权利归游戏及其权利人所有。仅分发所需小图标，不附带完整原生资源。

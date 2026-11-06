@@ -1,16 +1,18 @@
 """Pack bundled mode silhouettes in the texture/material format used by MDL gui_assets.py.
 
-Only mod-owned input geometry and Lua resources are packed. No MDL runtime or game files.
+Mode geometry, native booster icon conversions and Lua resources are packed.
+No MDL runtime, complete game resources or DLLs are bundled.
 """
 import struct
 from archive import resource_hash, LUA
 
 
-def pack(sources, icons):
+def pack(sources, icons, extra_images=None):
     from PIL import Image, ImageDraw
     texture_type, material_type = resource_hash('texture'), resource_hash('material')
     rows = [(LUA, resource_hash(n), struct.pack('<II', len(s.encode()), 2) + s.encode(), b'')
             for n, s in sources.items()]
+    images = {}
     for word, icon in sorted(icons.items()):
         # Same fit as the old icon renderer: identical 34-unit square, aspect retained.
         image = Image.new('RGBA', (128, 128))
@@ -22,13 +24,19 @@ def pack(sources, icons):
             x1, y1 = round(ox + (x + w) * scale), round(oy + (1 - y) * scale)
             if x1 > x0 and y1 > y0:
                 draw.rectangle((x0, y0, x1 - 1, y1 - 1), fill=(255, 255, 255, alpha))
+        name = 'mods/integrated_hud/mdl_gamesession/img/' + word.lower().replace(' ', '_')
+        images[name] = image
+    for name, image in (extra_images or {}).items():
+        assert name not in images
+        assert image.size == (128, 128)
+        images[name] = image
+    for name, image in sorted(images.items()):
         levels = []
         while True:
             levels.append(image.tobytes())
             if image.size == (1, 1):
                 break
             image = image.resize((max(1, image.width // 2), max(1, image.height // 2)), Image.Resampling.BOX)
-        name = 'mods/integrated_hud/mdl_gamesession/img/' + word.lower().replace(' ', '_')
         tex_id = resource_hash(name + '/tex')
         header = bytearray(192)
         struct.pack_into('<I', header, 8, 0xFFFFFFFF)

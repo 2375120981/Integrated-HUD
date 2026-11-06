@@ -1,0 +1,12 @@
+{
+  "tag_left": 48,
+  "icon_center_x": 32,
+  "icon_size": 30,
+  "above_tag_center": 22,
+  "local_tag_center_y": 1008,
+  "last_teammate_tag_center_y": 902,
+  "teammate_row_spacing": 44,
+  "row_order": "local player at bottom; other players in ascending Hub slot order",
+  "note": "0.8.5 layout and 150% icon size verified in game by the user; other native HUD scales may need calibration.",
+  "user_verified": true
+}

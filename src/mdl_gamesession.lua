@@ -3,6 +3,8 @@
 local reader
 local vehicles
 local network_hud
+local booster_hud
+local next_booster_error=0
 local next_network_error=0
 local vehicle_views_key=nil
 local active_mod=false
@@ -42,7 +44,7 @@ end
 local function log(s)
  pcall(function()
   local base=os.getenv('APPDATA');if not base then return end
-  local f=io.open(base..'/Arrowhead/Helldivers2/IntegratedHUD-MDL-0.8.3.log','a')
+  local f=io.open(base..'/Arrowhead/Helldivers2/IntegratedHUD-MDL-0.8.5.log','a')
   if f then f:write(string.format('%.3f %s\n',clock,s));f:close()end
  end)
 end
@@ -55,6 +57,10 @@ local function frame(dt)
  if network_hud then
   local ok,err=pcall(network_hud.update,clock)
   if not ok and clock>=next_network_error then next_network_error=clock+5;log('NETWORK_ERROR '..tostring(err))end
+ end
+ if booster_hud then
+  local ok,err=pcall(booster_hud.update,clock)
+  if not ok and clock>=next_booster_error then next_booster_error=clock+5;log('BOOSTER_ERROR '..tostring(err))end
  end
  if not reader then return end
  local v=reader.read(clock)
@@ -88,6 +94,9 @@ local function sync_settings(ctx)
   end
   network_hud.set_position(position[1],position[2])
  end
+ if settings.booster_hud~=false then
+  if not booster_hud then booster_hud=require('mods/integrated_hud/mdl_gamesession/squad_boosters').new(E,log)end
+ elseif booster_hud then call(booster_hud.shutdown);booster_hud=nil end
  local percent=scale_api and call(scale_api.get,SCALE_ID)or settings.weapon_scale
  weapon_scale=scale_percent(percent)/100
  local ammo_percent=ammo_number_scale_api and call(ammo_number_scale_api.get,AMMO_NUMBER_SCALE_ID)or settings.ammo_number_scale
@@ -168,6 +177,7 @@ local function register_scale()
 end
 local function stop()
  active_mod=false;stop_weapon();stop_vehicle()
+ if booster_hud then call(booster_hud.shutdown);booster_hud=nil end
  if network_hud then call(network_hud.shutdown);network_hud=nil end
  scale_api=nil
  ammo_number_scale_api=nil
@@ -175,15 +185,16 @@ local function stop()
  network_position_apis={}
 end
 definition={
- name='集成HUD',version='0.8.3',author='2375120981',
+ name='集成HUD',version='0.8.5',author='2375120981',
  description='需要 MDL dev43 与 HD2 Data Hub 0.6.0；MDL GUI 绘制全部 HUD，Hub 读取手持武器及弹药。',
  options={
   {key='weapon_hud',type='toggle',label='武器 HUD',default=true},
   {key='frv_hud',type='toggle',label='FRV HUD',default=true},
   {key='tank_hud',type='toggle',label='坦克 HUD',default=true},
   {key='mech_hud',type='toggle',label='机甲 HUD',default=true},
+  {key='booster_hud',type='toggle',label='小队强化图标',default=true},
   {key='network_hud',type='toggle',label='网络延迟',default=false},
-  {key='network_note',type='text',label='武器与延迟显示需启用 Hub 0.6.0',default=''},
+  {key='network_note',type='text',label='武器、强化与延迟显示需启用 Hub 0.6.0',default=''},
   {key='hot_toggle_note_1',type='text',label='局内热切换后可能需要',default=''},
   {key='hot_toggle_note_2',type='text',label='上下车或武器开火刷新状态',default=''}
  },
@@ -202,7 +213,7 @@ definition={
   log('START MDL dev43 GUI; Hub 0.6 weapon identity/ammo; GameSession vehicle and weapon settings')
  end,
  on_setting=function(ctx,key,value)
-  if key=='weapon_hud'or key=='frv_hud'or key=='tank_hud'or key=='mech_hud'or key=='weapon_scale'or key=='ammo_number_scale'or key=='network_hud'or key=='network_scale'or key=='network_x'or key=='network_y'then
+  if key=='booster_hud'or key=='weapon_hud'or key=='frv_hud'or key=='tank_hud'or key=='mech_hud'or key=='weapon_scale'or key=='ammo_number_scale'or key=='network_hud'or key=='network_scale'or key=='network_x'or key=='network_y'then
    sync_settings(ctx);log('SETTING '..key..'='..tostring(value))
   end
  end,

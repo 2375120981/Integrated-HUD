@@ -1,0 +1,29 @@
+{
+  "resource": "content/ui/shared/resources/generated_icons/booster_icons",
+  "package": "007e093ca718ca1a",
+  "type": "46bc82aae9ae0565",
+  "sha256": "15428e9585ccfc5b8840d6a9c0e1da61452658a0fa633d1b77ecc792622ae9be",
+  "names": [
+    "Vitality",
+    "Stamina",
+    "MuscleEnhancement",
+    "UAVRecon",
+    "IncreasedReinforcementBudget",
+    "FlexibleReinforcementBudget",
+    "HellpodSpaceOptimization",
+    "LocalizationConfusion",
+    "FastExtraction",
+    "SlowStunResistance",
+    "CombatDrugs",
+    "FieryDrop",
+    "DoubleSampleChance",
+    "DeathMarch",
+    "DefensiveAmmoPod",
+    "BigEnemiesDropSamples",
+    "ShockPods",
+    "SmokePods",
+    "FireExtinguish",
+    "FreeEAT"
+  ],
+  "source": "Native game XAML vectors, rendered without modifying paths or colors; not a replacement design."
+}
