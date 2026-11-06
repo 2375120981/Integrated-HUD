@@ -1,4 +1,4 @@
-"""Build MDL-managed Integrated HUD with GameSession readers and optional Hub RTT; no Chef/boot."""
+"""Build Integrated HUD for MDL dev43 GUI and Hub 0.6 weapon data; no Chef/boot."""
 from pathlib import Path
 import argparse
 import hashlib
@@ -23,7 +23,7 @@ def replace(s, before, after):
     return s.replace(before, after, 1)
 
 
-def vehicle_source():
+def vehicle_source(mdl_gui=True):
     core = read('src/vendor/driver_hud_160.lua')
     expected = json.loads(read('build-inputs.json'))['driver_core_sha256']
     assert hashlib.sha256((ROOT / 'src/vendor/driver_hud_160.lua').read_bytes()).hexdigest() == expected
@@ -44,6 +44,18 @@ def vehicle_source():
                   'driver_mech_hud', 'driver_performance', 'driver_visibility']
     core = replace(core, '-- Diagnostics attachment API 1.',
                    '\n'.join(read('src/' + n + '.lua') for n in extensions) + '\n-- Diagnostics attachment API 1.')
+    if mdl_gui:
+        core = replace(core, 'local V2,V3,Color = sr.Vector2,sr.Vector3,sr.Color', """local drawing=require('mods/integrated_hud/mdl_gamesession/driver_mdl_gui').new()
+World=setmetatable(drawing.World,{__index=World});Gui=drawing.Gui
+local function V2(x,y)return {x,y}end
+local function V3(x,y,z)return {x,y,z}end
+local function Color(a,r,g,b)return {r,g,b,a}end""")
+        core = replace(core, '-- Diagnostics attachment API 1.', """HudNumber.draw=function(label,x,y,size,a,c,anchor)
+ local id=drawing.number(M.gui,label,x,y,size,a,c,anchor)
+ if not id then return false end
+ remember('destroy_text',id);return true
+end
+-- Diagnostics attachment API 1.""")
     # MDL owns dispatch. Do not install DRIVER globals, extension registries,
     # global hooks, or singleton flags; each enable receives a fresh factory.
     core = core[:core.index("local old=rawget(_G,'update');")]
@@ -52,8 +64,29 @@ def vehicle_source():
  surface_reset(call(App.worlds)or{});full_reset()
 end}
 '''
+    if mdl_gui:
+        core = replace(core, 'update=update,set_views=M.integrated_set_views',
+                       'update=function(...)local ok,err=pcall(update,...);drawing.flush();if not ok then error(err)end end,set_views=function(...)M.integrated_set_views(...);drawing.flush()end')
+        core = replace(core, 'surface_reset(call(App.worlds)or{});full_reset()',
+                       'surface_reset(call(App.worlds)or{});full_reset();drawing.shutdown()')
     core = core.replace('-- HD2-Addon: mods/driverhud/driver_hud\n', '')
     return 'return function()\n' + core + '\nend\n'
+
+
+def weapon_detail_data():
+    from lupa.lua51 import LuaRuntime
+    lua = LuaRuntime(unpack_returned_tuples=True)
+    prefix = read('src/vendor/narrowhud_weapon_200.lua').split('local M={version=', 1)[0]
+    data, seed = lua.execute(prefix + 'return DATA,SEED\nend')({})
+    roles = {k: dict(v.items()) for k, v in data['roles'].items()}
+    types = []
+    for line in data['weapons'].splitlines():
+        h, name, letters = line.split()
+        types.append({'id': h, 'name': name, 'roles': letters, 'heat': roles['heat']['letter'] in letters})
+    return 'return ' + lua_value({'types': types, 'roles': roles,
+        'rpmadj': dict(seed['rpmadj'].items()), 'rpmbase': dict(seed['rpmbase'].items()),
+        'options1': dict(seed['options1'].items()), 'slots': dict(seed['slot'].items()),
+        'packres': dict(seed['packres'].items())})
 
 
 def pe(path):
@@ -80,23 +113,22 @@ def main():
     entry = BASE + 'main'
     sources = {
         entry: read('src/mdl_gamesession.lua'),
-        BASE + 'reader': read('src/narrow200_reader.lua'),
+        BASE + 'reader': read('src/hub_weapon_reader.lua'),
+        BASE + 'weapon_details': read('src/weapon_details.lua'),
+        BASE + 'weapon_network_binding': read('src/weapon_network_binding.lua'),
+        BASE + 'weapon_detail_data': weapon_detail_data(),
+        BASE + 'mdl_canvas': read('src/mdl_canvas.lua'),
+        BASE + 'driver_mdl_gui': read('src/driver_mdl_gui.lua'),
+        BASE + 'weapon_view': read('src/mdl_weapon_view.lua'),
         BASE + 'network_ping': read('src/network_ping.lua'),
         BASE + 'network_ping_hud': read('src/network_ping_hud.lua'),
-        BASE + 'network_text': read('src/network_text.lua'),
         BASE + 'utf8_text': read('src/utf8_text.lua'),
-        BASE + 'network_font_index': 'return ' + lua_value(json.loads(read('data/network_font/index.json'))),
-        BASE + 'sensor': read('src/vendor/narrowhud_weapon_200.lua'),
-        BASE + 'art_ui': read('src/weapon_art_ui.lua'),
-        BASE + 'font': 'return ' + lua_value(json.loads(read('data/weapon_art.json'))),
+        BASE + 'mode_images': 'return ' + lua_value({k: BASE + 'img/' + k.lower().replace(' ', '_') for k in json.loads(read('data/weapon_art.json'))['icons']}),
         BASE + 'layout': 'return ' + lua_value(json.loads(read('layout/weapon.json'))),
         PREFIX + 'driver_core': vehicle_source(),
         PREFIX + 'mech_binding': read('src/mech_binding.lua'),
         PREFIX + 'flamer_frv_data': 'return ' + lua_value(json.loads(read('data/flamer_frv.json'))),
     }
-    for page in sorted((ROOT / 'data/network_font').glob('*.json')):
-        if page.stem != 'index':
-            sources[BASE + 'network_font_' + page.stem] = 'return ' + lua_value(json.loads(page.read_text(encoding='utf-8')))
     layout = json.loads(read('layout/vehicles.json'))
     mech = layout['mech']
     mech['fill_triangles'] = triangulate_polygon(mech['outline'])
@@ -115,12 +147,7 @@ def main():
     notice_source = read('src/native_sniper_notice.lua')
     # The one-shot task can display Chinese even if HUD core is not selected.
     notice_support = {'mods/integrated_hud/native_sniper_notice': notice_source}
-    for key in ('network_text', 'utf8_text', 'network_font_index'):
-        notice_support[BASE + key] = sources[BASE + key]
-    for page in {format(ord(c) // 256, 'x') for c in notice_source}:
-        key = BASE + 'network_font_' + page
-        if key in sources:
-            notice_support[key] = sources[key]
+    notice_support[BASE + 'mdl_canvas'] = sources[BASE + 'mdl_canvas']
     native_sources = {mode: dict(notice_support, **{native_entry: render_native(native_template, mode, native_spec, VERSION, lua_value)})
                       for mode in ('apply', 'restore')}
     for variant in native_sources.values():
@@ -133,20 +160,15 @@ def main():
         lua.compile(source, name=name)
         for dep in re.findall(r"require\(['\"]([^'\"]+)['\"]\)", source):
             assert dep in sources, (name, dep)
-    lua.globals().SOURCES = lua.table_from(sources)
-    checks = dict(lua.execute(read('tests/mdl_gamesession_basic_check.lua')).items())
+    lua.globals().SOURCES = lua.table_from(dict(sources, **notice_support))
+    checks = dict(lua.execute(read('tests/mdl_dev43_basic_check.lua')).items())
     checks.update(check_native(native_template, lua_value, args.output_dir))
-    notice_test = LuaRuntime(unpack_returned_tuples=True)
-    notice_test.globals().SOURCES = notice_test.table_from(notice_support)
-    checks.update(dict(notice_test.execute(read('tests/native_sniper_notice_basic_check.lua')).items()))
-    ping_test=LuaRuntime(unpack_returned_tuples=True)
-    ping_test.globals().SOURCES=ping_test.table_from(sources)
-    checks.update(dict(ping_test.execute(read('tests/network_ping_basic_check.lua')).items()))
-    respawn_test = LuaRuntime(unpack_returned_tuples=True)
-    respawn_test.globals().SOURCES = respawn_test.table_from(sources)
-    checks.update({'respawn_' + k: v for k, v in dict(respawn_test.execute(
-        read('tests/narrow_respawn_basic_check.lua')).items()).items()})
-    # Reuse the existing finite seat/HP/exit workflow with managed dispatch.
+    # Retain the bounded RTT provider checks; its renderer is covered by dev43 checks.
+    ping_test = LuaRuntime(unpack_returned_tuples=True)
+    ping_test.globals().SOURCES = ping_test.table_from(sources)
+    ping_workflow = read('tests/network_ping_basic_check.lua').split('-- Independent', 1)[0]
+    ping_test.execute(ping_workflow)
+    checks['ping_existing_provider_regression'] = True
     vehicle_test = LuaRuntime(unpack_returned_tuples=True)
     managed = sources[PREFIX + 'driver_core']
     wrapper = ('local create=(function()\n' + managed + '\nend)()\n'
@@ -155,18 +177,20 @@ def main():
                        'MECH_STYLE_SOURCE': sources[PREFIX + 'mech_style_data'],
                        'MECH_BINDING_SOURCE': sources[PREFIX + 'mech_binding'], 'FLAMER_FRV_SOURCE': sources[PREFIX + 'flamer_frv_data'], 'PERF_EXPECTED': True}.items():
         vehicle_test.globals()[key] = value
+    vehicle_test.globals().SOURCES = vehicle_test.table_from(sources)
     workflow = read('tests/driver_reference_basic_check.lua').replace(
         'assert(result.installed and env.__DRIVER_HUD_INSTALLED)',
         'assert(result.installed and env.__DRIVER_HUD_INSTALLED==nil)')
+    workflow = workflow.replace("local f=assert(loadstring(CORE_SOURCE,'@original_driver_core'))", read('tests/mdl_vehicle_gui_mock.lua') + "\nlocal f=assert(loadstring(CORE_SOURCE,'@original_driver_core'))")
     checks.update({'vehicle_' + k: v for k, v in dict(vehicle_test.execute(workflow).items()).items()
                    if not k.startswith('weapon_')})
     inputs = json.loads(read('build-inputs.json'))
     report = {'version': VERSION, 'steam_build': cfg['steam_build'], 'pe_key': cfg['pe_key'],
-              'loader': 'MDL3', 'weapon_reader': 'NarrowHUD 2.0.0 GameSession modules',
-              'chef_required': False, 'hd2data_required': False, 'hd2data_optional_features': ['network_ping'],
+              'loader': 'MDL3', 'weapon_reader': 'HD2 Data Hub 0.6 held entity/ammo/heat/reload; unique local carried-slot network binding for settings',
+              'chef_required': False, 'hd2data_required': True, 'hd2data_minimum': '0.6.0', 'renderer': 'MDL3.gui api 1', 'mdl_minimum': 'dev43',
               'network_ping_reader': '0.6.9 logic: session/connection gates + HD2Data roster + Network.ping + diagnostics', 'ffi_required': False,
-              'vehicle_hud_enabled': True, 'mech_hud_enabled': True,
-              'flamer_frv': {'front_seats_only': True, 'driver_bit': 2, 'passenger_bit': 4, 'gunner_bit': 1, 'user_verified': True, 'validated_as': 'standalone MDL hot-loaded test before integration'},
+              'vehicle_hud_enabled': True, 'mech_hud_enabled': True, 'vehicle_health_text_scale': 1.5, 'vehicle_health_center': 'measured final-size text width; explicit left origin',
+              'flamer_frv': {'front_seats_only': True, 'driver_bit': 2, 'passenger_bit': 4, 'gunner_bit': 1, 'reader_previously_user_verified': True, 'mdl_gui_runtime_verified': False},
               'runtime_verified': False, 'deployed': False, 'boot_override': False,
               'checksum_sidecars': False, 'basic_checks': checks,
               'native_sniper': {'tool_version': inputs['native_sniper_tool']['version'],
@@ -176,15 +200,16 @@ def main():
                                 'manager_choices': ['restore', 'apply'], 'center_result_notice': True,
                                 'game_data_bundled': False, 'standalone_tool_deployed_by_manager': False},
               'source_sha256': {k: hashlib.sha256(v.encode()).hexdigest() for k, v in sources.items()}}
-    patch = archive({k: v.encode() for k, v in sources.items()})
+    from mdl_images import pack
+    patch, gpu = pack(sources, json.loads(read('data/weapon_art.json'))['icons'])
     count = struct.unpack_from('<I', patch, 8)[0]
-    assert resource_hash('boot') not in [struct.unpack_from('<Q', patch, 104 + i * 80)[0] for i in range(count)]
+    assert resource_hash('boot') not in [struct.unpack_from('<Q', patch, 72 + struct.unpack_from('<I', patch, 4)[0] * 32 + i * 80)[0] for i in range(count)]
     manifest = {'Version': 1, 'Guid': '61710665-8698-4f23-bff7-00fbd715b2d8',
                 'Name': '集成HUD MDL ' + VERSION,
-                'Description': '管理器提供准星开启/关闭一次性启动任务，成功后屏幕中央提示重启及取消选项；不兼容数据可使用随包NativeSniperTool独立修复工具。MDL加载及启停，支持武器、FRV、坦克和机甲HUD独立实时开关及武器HUD整体大小、弹匣/备弹数字独立大小及左侧锚定的延迟面板独立缩放、横向位置及纵向位置滑动条；网络延迟可选依赖HD2 Data Hub，左侧紧凑双列以玩家名或peer标识RTT，标题右边缘纵向分隔，长名字截短，支持舰船阶段尝试采样及装备/菜单界面常显，中途加入临时会话回退到连接peer，原生编号待适配，不扫描远端对象；GameSession读取武器弹药/热量/功能模式/射速/背包供弹；FRV支持机枪型、补给型及喷火型前座；喷火型显示两个前座，机枪位不显示载具HUD。恢复坦克及机甲HUD。武器采用Monocraft及自带图标，延迟面板采用支持中英文的Fusion Pixel；换弹隐藏武器HUD。核心依赖MDL3，无需Chef；延迟功能另需HD2 Data Hub。',
+                'Description': '需要MDL dev43及HD2 Data Hub 0.6.0。全部HUD使用MDL GUI绘制及游戏菜单字体；Hub直接读取手持武器、弹量、备弹、热量和换弹状态，换弹隐藏。载具及模式射速保留补充读取。支持独立启停、武器整体及弹药数字缩放、延迟面板缩放和位置调整；保留管理器狙击准星一次性启用/关闭及独立修复工具。验证版，需实机测试。',
                 'Options': [
                     {'Name': 'HUD核心',
-                     'Description': '武器、载具及可选Hub延迟HUD；支持MDL局内启停及设置。狙击枪准星可选择下方一次性任务；亦随包提供独立修复工具。',
+                     'Description': 'Hub武器、MDL绘制载具及延迟HUD；支持MDL局内启停及设置。狙击枪准星可选择下方一次性任务；亦随包提供独立修复工具。',
                      'SubOptions': [
                          {'Name': '集成HUD', 'Description': '武器、载具HUD；支持MDL局内启停及设置。', 'Include': ['HUD']}
                      ]},
@@ -198,7 +223,7 @@ def main():
     files = {'manifest.json': json.dumps(manifest, ensure_ascii=False, indent=2).encode(),
              'HUD/9ba626afa44a3aa3.patch_0': patch,
              'HUD/9ba626afa44a3aa3.patch_0.stream': b'',
-             'HUD/9ba626afa44a3aa3.patch_0.gpu_resources': b'',
+             'HUD/9ba626afa44a3aa3.patch_0.gpu_resources': gpu,
              'VERIFICATION.json': json.dumps(report, ensure_ascii=False, indent=2).encode(),
              'README.md': read('README.md').encode(),
              'version.json': read('version.json').encode(),
@@ -225,18 +250,13 @@ def main():
     assert len(manifest['Options']) == 2 and manifest['Options'][0]['Name'] == 'HUD核心'
     assert len(manifest['Options'][1]['SubOptions']) == 2
     assert not any(name.endswith(('.dl_bin', '.dll')) for name in files)
-    for name, expected in inputs['assets_sha256'].items():
-        data = (ROOT / 'assets/driver_hud' / name).read_bytes()
-        assert hashlib.sha256(data).hexdigest() == expected
-        for folder in ('HUD', 'ReticleApply', 'ReticleRestore'):
-            files[folder + '/' + name] = data
-    for family in ['driver_hud', 'narrowhud200', 'monocraft', 'fusion_pixel']:
+    for family in ['driver_hud', 'narrowhud200']:
         for path in sorted((ROOT / 'third_party' / family).rglob('*')):
             if path.is_file(): files['third_party/' + family + '/' + path.relative_to(ROOT / 'third_party' / family).as_posix()] = path.read_bytes()
     files['CREDITS.txt'] = ('Integrated HUD: 2375120981.\nBased on NarrowHUD 2.0.0 by luka189 (reading modules, modified).\n'
                             'Vehicle core and solid material: DRIVER HUD; see bundled notices.\n'
-                            'Monocraft: Idrees Hassan, SIL OFL 1.1.\n'
-                            'Fusion Pixel: TakWolf and upstream font authors, SIL OFL 1.1; network panel.\n'
+                            'All UI uses MDL3.gui and the current game menu font.\n'
+                            'Mode silhouettes converted to bundled MDL GUI image resources.\n'
                             'MDL3 is a separately installed dependency; official link in README.\n'
                             'No Chef, MDL3 or HD2 Data Hub component bundled.\n').encode()
     args.output_dir.mkdir(parents=True, exist_ok=True)

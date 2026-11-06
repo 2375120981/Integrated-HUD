@@ -1,14 +1,13 @@
 {
   "name": "集成HUD（Integrated HUD）",
   "slug": "IntegratedHUD",
-  "version": "0.7.5",
+  "version": "0.8.3",
   "mode": "mdl-gamesession",
   "steam_build": "26251122",
   "pe_key": "6AE0E5FF:03382000:6AE0964A",
-  "mdl": "3.0.0-dev.21-preview",
-  "hd2data_required": false,
+  "mdl": "3.0.0-dev.43-preview",
+  "hd2data_required": true,
   "chef_required": false,
-  "hd2data_optional_features": [
-    "network_ping"
-  ]
+  "hd2data_optional_features": [],
+  "hd2data_minimum": "0.6.0"
 }

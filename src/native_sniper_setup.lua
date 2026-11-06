@@ -155,7 +155,7 @@ return {
   end
   if result and clock>=next_notice_error then
    local ok,err=pcall(function()
-    if not notice then notice=require('mods/integrated_hud/native_sniper_notice').new(stingray,MODE)end
+    if not notice then notice=require('mods/integrated_hud/native_sniper_notice').new(stingray,MODE,log)end
     notice.update(result,clock)
    end)
    if not ok then

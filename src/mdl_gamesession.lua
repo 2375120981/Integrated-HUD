@@ -1,5 +1,5 @@
 -- HD2-Addon: mods/integrated_hud/mdl_gamesession/main
--- MDL-managed lifecycle; GameSession supplies gameplay state.
+-- MDL lifecycle/GUI; Hub supplies weapon identity, ammo, heat and reload state.
 local reader
 local vehicles
 local network_hud
@@ -13,7 +13,6 @@ local ammo_number_scale_api=nil
 local scale_api=nil
 local network_scale_api=nil
 local network_position_apis={}
-local anchor_x,anchor_y=0,0
 local definition
 local SCALE_ID='integrated_hud.weapon_scale'
 local AMMO_NUMBER_SCALE_ID='integrated_hud.ammo_number_scale'
@@ -32,18 +31,10 @@ local function scale_percent(value)
  if type(value)~='number'or value~=value or math.abs(value)==math.huge then return 100 end
  return math.max(50,math.min(150,math.floor(value/5+.5)*5))
 end
-local art=require('mods/integrated_hud/mdl_gamesession/font')
-local text_ui=require('mods/integrated_hud/mdl_gamesession/art_ui')
-local cfg=require('mods/integrated_hud/mdl_gamesession/layout')
 local E=stingray
-local App,W,Q=E.Application,E.World,E.Gui
-local gui,world,groups,active=nil,nil,{},nil
-local clock,next_poll,next_gui=0,0,0
-local snapshot={state='WAIT HUB'}
+local weapon_view=nil
+local clock=0
 local last_log,next_log,next_error=nil,0,0
-local last_diag,next_diag=nil,0
-local last_slots,next_slots=nil,0
-local white,amber={218,222,219},{236,190,72}
 local function call(fn,...)
  if type(fn)~='function'then return nil end
  local ok,a,b=pcall(fn,...);if ok then return a,b end
@@ -51,79 +42,10 @@ end
 local function log(s)
  pcall(function()
   local base=os.getenv('APPDATA');if not base then return end
-  local f=io.open(base..'/Arrowhead/Helldivers2/IntegratedHUD-MDL-0.7.5.log','a')
+  local f=io.open(base..'/Arrowhead/Helldivers2/IntegratedHUD-MDL-0.8.3.log','a')
   if f then f:write(string.format('%.3f %s\n',clock,s));f:close()end
  end)
 end
-local function live(worlds,value)
- for _,w in pairs(worlds or{})do if w==value then return true end end
- return false
-end
-local function clear()
- for _,g in pairs(groups)do for _,id in ipairs(g.ids)do call(Q.destroy_triangle,gui,id)end end
- groups={}
-end
-local function dispose()
- local worlds=call(App.worlds)
- if gui and live(worlds,world)then clear();call(W.destroy_gui,world,gui)end
- gui=nil;world=nil;groups={};active=nil;next_gui=0
-end
-local function surface(worlds)
- if gui and live(worlds,world)then return true end
- gui=nil;world=nil;groups={}
- if clock<next_gui then return false end
- next_gui=clock+.5
- local main=call(App.main_world);local tried=0
- local function attempt(w)
-  tried=tried+1
-  local result=call(W.create_screen_gui,w,'scale',1,1)
-  if result then gui=result;world=w;return true end
- end
- for _,w in pairs(worlds or{})do if w~=main and tried<4 and attempt(w)then return true end end
- return live(worlds,main)and attempt(main)or false
-end
-local function triangle(x1,y1,x2,y2,x3,y3,a,c)
- if weapon_scale~=1 then
-  x1,y1=anchor_x+(x1-anchor_x)*weapon_scale,anchor_y+(y1-anchor_y)*weapon_scale
-  x2,y2=anchor_x+(x2-anchor_x)*weapon_scale,anchor_y+(y2-anchor_y)*weapon_scale
-  x3,y3=anchor_x+(x3-anchor_x)*weapon_scale,anchor_y+(y3-anchor_y)*weapon_scale
- end
- local uv=E.Vector2(.5,0)
- local id=Q.triangle(gui,E.Vector3(x1,0,y1),E.Vector3(x2,0,y2),E.Vector3(x3,0,y3),3,
-  E.Color(math.floor(a*255),c[1],c[2],c[3]),'mods/driver_hud/solid',uv,uv,uv)
- assert(id~=nil and id~=false,'HUD triangle creation failed')
- active[#active+1]=id
-end
-local font=text_ui.new(art,triangle,log)
-local function label(s,x,y,size,color,center)
- return font.text(gui,nil,s,x,y,size,color or white,center,1)
-end
-local function group(name,key,draw)
- local old=groups[name];if old and old.key==key then return end
- if old then for _,id in ipairs(old.ids)do call(Q.destroy_triangle,gui,id)end end
- local ids={};groups[name]={key=key,ids=ids};active=ids
- draw();active=nil
-end
-local function arc(cx,cy,s,ratio,color)
- local outer=(cfg.radius+2)*s;local inner=outer-cfg.thickness*s
- local function band(ro,ri,f,alpha,c)
-  for i=1,cfg.segments do
-   local lo=(i-1)/cfg.segments;local hi=math.min(i/cfg.segments,f)
-   if hi>lo then
-    local a=math.rad(cfg.start_degrees+(cfg.end_degrees-cfg.start_degrees)*lo)
-    local b=math.rad(cfg.start_degrees+(cfg.end_degrees-cfg.start_degrees)*hi)
-    local x0,y0=cx+math.cos(a)*ro,cy+math.sin(a)*ro
-    local x1,y1=cx+math.cos(b)*ro,cy+math.sin(b)*ro
-    local x2,y2=cx+math.cos(a)*ri,cy+math.sin(a)*ri
-    local x3,y3=cx+math.cos(b)*ri,cy+math.sin(b)*ri
-    triangle(x0,y0,x1,y1,x2,y2,alpha,c);triangle(x1,y1,x3,y3,x2,y2,alpha,c)
-   end
-  end
- end
- band(outer+s,inner-s,1,.75,{0,0,0});band(outer,inner,1,.18,white)
- band(outer,inner,ratio,.95,color or white)
-end
-local function id(v)return v~=nil and string.format('%.0f',v)or'-'end
 local function frame(dt)
  clock=clock+(type(dt)=='number'and dt>0 and math.min(dt,.5)or 1/60)
  if vehicles then
@@ -135,41 +57,16 @@ local function frame(dt)
   if not ok and clock>=next_network_error then next_network_error=clock+5;log('NETWORK_ERROR '..tostring(err))end
  end
  if not reader then return end
- local worlds=call(App.worlds)
- if gui and not live(worlds,world)then gui=nil;world=nil;groups={};next_gui=0 end
- if E.Window and call(E.Window.show_cursor)==true then if gui then clear()end;return end
- snapshot=reader.read(clock)
- if not surface(worlds)then return end
- local width,height=call(App.back_buffer_size)
- if type(width)~='number'or type(height)~='number'then return end
- local s=math.min(width/1920,height/1080);local cx,cy=width/2,height/2
- anchor_x,anchor_y=cx,cy
- local v=snapshot;local base=width..'/'..height..'/'..weapon_scale..'/'..ammo_number_scale..'/'
- local key=table.concat({v.state,id(v.entity),v.kind or'',id(v.rounds),id(v.mags),id(v.heat_percent),
-  tostring(v.overheated),tostring(v.ratio and math.floor(v.ratio*200+.5)),v.mode or'',v.rpm or'',v.safety or''},'/')
+ local v=reader.read(clock)
+ if E.Window and call(E.Window.show_cursor)==true then if weapon_view then weapon_view.hide()end;return end
+ local key=table.concat({v.state,tostring(v.entity),v.kind or'',tostring(v.rounds),tostring(v.mags),tostring(v.heat_percent),v.mode or'',v.rpm or''},'/')
  if key~=last_log and clock>=next_log then last_log=key;next_log=clock+.5;log('WEAPON '..key)end
- group('weapon',base..key,function()
-  if v.state~='READY'then return end
-  local c=v.kind=='heat'and(v.overheated and{235,60,45}or amber)or white
-  arc(cx,cy,s,v.ratio,c)
-  local number=v.kind=='heat'and(id(v.heat_percent)..'%')or(id(v.rounds)..' / '..id(v.mags))
-  label(number,cx+cfg.count_x*s,cy+cfg.count_y*s,cfg.number_height*s*(v.kind=='heat'and 1 or ammo_number_scale),white,true)
-  local row=0
-  for mode in ((v.mode or'')..'  '):gmatch('(.-)  ')do if mode~=''then
-   local x,y=cx+cfg.label_x*s,cy+(cfg.label_y-row*42)*s
-   if art.icons[mode]then font.icon(gui,nil,mode,x,y,34*s,1)
-   else label(mode,x,y,cfg.mode_height*s,white)end
-   row=row+1
-  end end
-  for _,text in ipairs({v.safety or'',v.rpm or''})do if text~=''then
-   label(text,cx+cfg.label_x*s,cy+(cfg.label_y-row*42)*s,cfg.mode_height*s,white);row=row+1
-  end end
- end)
+ if not weapon_view then weapon_view=require('mods/integrated_hud/mdl_gamesession/weapon_view').new(log)end
+ weapon_view.update(v,weapon_scale,ammo_number_scale)
 end
 local function stop_weapon()
- dispose()
+ if weapon_view then call(weapon_view.shutdown);weapon_view=nil end
  if reader then call(reader.shutdown);reader=nil end
- snapshot={state='DISABLED'}
 end
 local function stop_vehicle()
  if vehicles then call(vehicles.shutdown);vehicles=nil end
@@ -200,7 +97,7 @@ local function sync_settings(ctx)
    reader=require('mods/integrated_hud/mdl_gamesession/reader').new(E,log)
    reader.reset()
   end
- elseif reader or gui then stop_weapon()end
+ elseif reader or weapon_view then stop_weapon()end
  local frv,tank,mech=settings.frv_hud~=false,settings.tank_hud~=false,settings.mech_hud~=false
  if frv or tank or mech then
   if not vehicles then
@@ -278,15 +175,15 @@ local function stop()
  network_position_apis={}
 end
 definition={
- name='集成HUD',version='0.7.5',author='2375120981',
- description='MDL加载；武器与载具读取无需Hub；网络延迟可选依赖HD2 Data Hub。',
+ name='集成HUD',version='0.8.3',author='2375120981',
+ description='需要 MDL dev43 与 HD2 Data Hub 0.6.0；MDL GUI 绘制全部 HUD，Hub 读取手持武器及弹药。',
  options={
   {key='weapon_hud',type='toggle',label='武器 HUD',default=true},
   {key='frv_hud',type='toggle',label='FRV HUD',default=true},
   {key='tank_hud',type='toggle',label='坦克 HUD',default=true},
   {key='mech_hud',type='toggle',label='机甲 HUD',default=true},
-  {key='network_hud',type='toggle',label='网络延迟 (需Hub)',default=false},
-  {key='network_note',type='text',label='延迟显示需启用 HD2 Data Hub',default=''},
+  {key='network_hud',type='toggle',label='网络延迟',default=false},
+  {key='network_note',type='text',label='武器与延迟显示需启用 Hub 0.6.0',default=''},
   {key='hot_toggle_note_1',type='text',label='局内热切换后可能需要',default=''},
   {key='hot_toggle_note_2',type='text',label='上下车或武器开火刷新状态',default=''}
  },
@@ -302,7 +199,7 @@ definition={
    settings.vehicle_hud=nil
   end
   active_mod=true;sync_settings(ctx)
-  log('START MDL managed; GameSession; independent HUD settings')
+  log('START MDL dev43 GUI; Hub 0.6 weapon identity/ammo; GameSession vehicle and weapon settings')
  end,
  on_setting=function(ctx,key,value)
   if key=='weapon_hud'or key=='frv_hud'or key=='tank_hud'or key=='mech_hud'or key=='weapon_scale'or key=='ammo_number_scale'or key=='network_hud'or key=='network_scale'or key=='network_x'or key=='network_y'then
@@ -313,7 +210,7 @@ definition={
   if not active_mod then return end
   sync_settings(ctx)
   local ok,err=pcall(frame,dt)
-  if not ok then dispose();if clock>=next_error then next_error=clock+5;log('ERROR '..tostring(err))end end
+  if not ok then if weapon_view then call(weapon_view.shutdown);weapon_view=nil end;if clock>=next_error then next_error=clock+5;log('ERROR '..tostring(err))end end
  end,
  on_disable=function()stop();log('STOP')end
 }
