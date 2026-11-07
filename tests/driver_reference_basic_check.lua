@@ -234,7 +234,8 @@ end
 if MECH_BINDING_SOURCE then
  types[498]='arm';types[499]='arm';types[500]='mech';fields[498]={};fields[499]={}
  fields[500]={[19]={[3]=6000,[6]={498,499}},[27]=10,[28]='position',[56]=1800,[65]=1800,[76]=3}
- fields[10][64][25]=32767;G.objects_owned_by=function()native.owned=native.owned+1;return {0,10,498,499,500}end
+ fields[100][15]=127
+ fields[10][64][25]=32767;G.objects_owned_by=function()native.owned=native.owned+1;return {0,10,100,498,499,500}end
  -- Exercise the real original-core idle hook before entry, no walking GUI.
  for _=1,10 do env.update(.1)end
  for _,pool in pairs(pools)do assert(next(pool)==nil,'prewarm drew while walking')end
@@ -251,7 +252,12 @@ if MECH_BINDING_SOURCE then
  measurements.metric_mech_steady_owned_calls=native.owned-owned_before
  measurements.metric_mech_steady_field_calls=native.field-field_before
  if PERF_EXPECTED then assert(native.owned-owned_before<=5,'mech ownership cache not used')end
+ -- A remote player enters the remembered FRV while the local mech stays put.
+ before=created;fields[100][15]=119
+ for _=1,15 do env.update(.1)end
+ assert(created==before,'teammate FRV seat change stole the proven local mech HUD')
  fields[500][56]=1170;for _=1,5 do env.update(.1)end;assert(created>before,'mech total health redraw failed')
+ measurements.mech_priority_over_remote_frv_seat_change=true
  motion=true;for _=1,10 do env.update(.1)end
  for _,pool in pairs(pools)do assert(next(pool)==nil,'mech exit did not clear')end
 end

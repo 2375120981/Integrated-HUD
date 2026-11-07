@@ -8,6 +8,13 @@ local OVERRIDE={cfaa9ddc=1,['9c06f074']=1,cd0e4b4a=1,['3244dc49']=1,['656d507b']
 local function call(f,...)if type(f)=='function'then local ok,a=pcall(f,...);if ok then return a end end end
 local function finite(v)return type(v)=='number'and v==v and math.abs(v)<1e9 end
 local function peer(v)return type(v)=='string'and v:lower():gsub('^0+','')or nil end
+local function connected_held(w,me)
+ local support=type(me.loadout)=='table'and me.loadout.support
+ return w.slot=='support'and w.category==3 and w.ammo_type==nil
+  and type(me.weapons)=='table'and me.weapons.support==w.entity
+  and type(support)=='table'and support.entity==w.entity and support.held==true
+  and support.ammo_type==nil and support.rounds==nil and support.capacity==nil
+end
 function M.new(E,data,valid,field,log)
  local G,N=E.GameSession or{},E.Network or{}
  local R={};local objects={};local ids={};local refresh=0;local hub_id=nil;local last_log=nil;local bound=nil
@@ -44,7 +51,7 @@ function M.new(E,data,valid,field,log)
    for id in pairs(objects)do if not seen[id]then objects[id]=nil end end
    table.sort(next_ids,function(a,b)return a>b end);ids=next_ids
   end
-  if bound and objects[bound.id]and call(G.game_object_exists,s,bound.id)==true
+  if bound and(not bound.t.direct_feed or connected_held(w,me))and objects[bound.id]and call(G.game_object_exists,s,bound.id)==true
    and call(G.game_object_is_type,s,bound.id,bound.t.name)==true then
    local carry=field(s,bound.id,bound.t,'carry');local owner=field(s,bound.id,bound.t,'owner')
    local floor=field(s,bound.id,bound.t,'floor')
@@ -73,7 +80,11 @@ function M.new(E,data,valid,field,log)
     if finite(carry)and carry%4==0 and peer(owner)==peer(local_peer)and(not finite(floor)or floor==32767)then
      -- Compare current contents as corroboration, never the mode we want to show.
      local same=false
-     if w.ammo_type=='heat'and t.heat then
+     if t.direct_feed and connected_held(w,me)then
+      -- No magazine count exists to compare. Still require one unambiguous
+      -- local carried direct-feed type in the authoritative support slot.
+      same=true
+     elseif w.ammo_type=='heat'and t.heat then
       local h=field(s,id,t,'heat');local hv=type(w.heat)=='table'and w.heat.value
       same=finite(h)and finite(hv)and math.abs(h-hv)<=16
      elseif w.ammo_type~='heat'and not t.heat and finite(w.rounds)then

@@ -80,6 +80,24 @@ local epoch=charged_weapon('314a1bf5','support',6)
 assert(epoch and epoch.hash=='314a1bf5'and not epoch.safety,'support Epoch displayed Railgun safety')
 assert(not charged_weapon('26acc614','primary',6),'Railgun bound to primary slot')
 assert(not charged_weapon('314a1bf5','primary',6),'Epoch bound to primary slot')
+-- Belt grenade launcher RPM exists even though Hub supplies no magazine.
+local belt_type=assert(type_by_hash['6b47e064'])
+assert(belt_type.direct_feed,'connected type metadata lost')
+identity.weapon={entity=4194506,slot='support',category=3,backpack_fed=false}
+identity.weapons={support=4194506}
+identity.loadout={support={entity=4194506,held=true,backpack_fed=false}}
+types[201]=belt_type.name;owned={201}
+for i,rpm in ipairs({160,240,320})do
+ fields[meta.roles.rpm.name]=rpm
+ detail.reset()
+ local result
+ for j=0,12 do result=detail.read(identity.weapon.entity,6+i+j*.2,identity);if result then break end end
+ assert(result and result.hash=='6b47e064'and result.rpm==rpm..' RPM','belt grenade RPM missing or stale')
+end
+owned={201,202};types[202]=belt_type.name;detail.reset()
+assert(detail.read(identity.weapon.entity,20,identity)==nil,'ambiguous belt objects guessed RPM')
+owned={201};identity.loadout.support.held=false;detail.reset()
+assert(detail.read(identity.weapon.entity,21,identity)==nil,'holstered belt object supplied RPM')
 -- No supplemental selector is allowed to influence Hub's identity or ammo type.
 local details_read={};local extra_available=true;local detail_refreshes=0;local backpack_reads=0
 overrides[B..'weapon_details']={new=function()return{read=function(id)details_read[#details_read+1]=id;if extra_available then return{mode='FLAK',backpack_fed=id==105}end end,reset=function()end,refresh=function()detail_refreshes=detail_refreshes+1 end}end}
@@ -89,7 +107,8 @@ local ready=true
 local weapon_mission={in_mission=true,epoch=1}
 local weapon_ammo_reads=0
 env.HD2Data={version='0.6.0',ready=function()return ready end,mission=function()return weapon_mission end,player_ammo=function()weapon_ammo_reads=weapon_ammo_reads+1;return me end,backpacks=function()backpack_reads=backpack_reads+1;return nil end}
-local reader=env.require(B..'reader').new(E,function()end)
+local input_logs={}
+local reader=env.require(B..'reader').new(E,function(line)input_logs[#input_logs+1]=line end)
 local v=reader.read(0);assert(v.kind=='heat'and v.entity==101 and v.heat_percent==30)
 me.weapon.heat.charge=50;me.weapon.heat.charging=true
 v=reader.read(.00001);assert(v.ratio==.3 and v.charge_ratio==.5 and v.heat_percent==30,'charge overwrote heat display')
@@ -139,12 +158,76 @@ env.HD2Data.backpacks=function()return{{is_local=true,peer=me.peer,backpack={ent
 assert(reader.read(.0063).mags==6,'independent Hub backpack API not used')
 env.HD2Data.backpacks=function()return{{is_local=true,peer='2222222222222222',backpack={entity=600,type='deposit',count=9}}}end
 assert(reader.read(.0064).mags==0,'another peer backpack leaked into local reserve')
+-- Direct backpack supply: only Hub identity/feed flag and local count/max.
+me.weapon={entity=106,slot='support',backpack_fed=true}
+me.backpack={entity=600,count=750,max=1000}
+env.HD2Data.backpacks=function()return nil end
+v=reader.read(.0065)
+assert(v.state=='READY'and v.backpack_direct and v.rounds==750 and v.ratio==.75 and v.mags==nil,'direct feed needs conventional ammo or double-counted backpack')
+me.backpack.count=0;v=reader.read(.00651)
+assert(v.state=='READY'and v.rounds==0 and v.ratio==0,'empty belt pack hidden')
+me.backpack=nil
+env.HD2Data.backpacks=function()return{{is_local=true,peer=me.peer,backpack={entity=600,type='deposit',count=250,max=1000}}}end
+assert(reader.read(.00652).rounds==250,'local Hub backpack count/max not used for direct feed')
+env.HD2Data.backpacks=function()return{{is_local=true,peer='2222222222222222',backpack={entity=600,type='deposit',count=999,max=1000}}}end
+assert(reader.read(.00653).state=='WAIT BACKPACK','foreign pack used for belt weapon')
+me.backpack={entity=600,count=400,max=1000}
+me.weapon.backpack_fed=nil
+assert(reader.read(.00654).state=='UNSUPPORTED AMMO','unknown support inferred as backpack-fed')
+me.weapon.backpack_fed=true;me.weapon.reload={active=true}
+assert(reader.read(.00655).state=='RELOADING','belt reload not hidden')
+me.weapon.reload=nil;me.backpack.count=nil
+assert(reader.read(.00656).state=='WAIT BACKPACK','missing pack count reused or invented')
+me.backpack={entity=600,count=1200,max=1000}
+assert(reader.read(.00657).state=='WAIT BACKPACK','invalid backpack capacity accepted')
+-- Replay the three captured Hub shapes: real connected weapons all report
+-- backpack_fed=false, no conventional ammo, and a matching held support slot.
+for i,pair in ipairs({{1000,952},{120,110},{500,470}})do
+ local id=610+i;local pack_id=620+i
+ me.weapon={entity=id,category=3,slot='support',backpack_fed=false}
+ me.weapons={support=id}
+ me.loadout={support={entity=id,held=true,backpack_fed=false}}
+ me.backpack={entity=pack_id,count=pair[1],max=pair[1]}
+ env.HD2Data.backpacks=function()return{{is_local=true,peer=me.peer,
+  backpack={entity=pack_id,owned=true,type='deposit',count=me.backpack.count,max=pair[1]}}}end
+ v=reader.read(.0066+i*.00001)
+ assert(v.state=='READY'and v.backpack_direct and v.rounds==pair[1]and v.ratio==1 and v.mags==nil,'captured full belt pack rejected')
+ me.backpack.count=pair[2];v=reader.read(.0067+i*.00001)
+ assert(v.rounds==pair[2]and v.ratio==pair[2]/pair[1],'captured firing did not update belt count')
+ me.backpack.count=0;assert(reader.read(.0068+i*.00001).rounds==0,'captured empty belt hidden')
+end
+local keep_packs=env.HD2Data.backpacks
+me.loadout.support.entity=999
+assert(reader.read(.0069).state=='UNSUPPORTED AMMO','disagreeing held/inventory accepted')
+me.loadout.support.entity=me.weapon.entity
+me.backpack=nil;env.HD2Data.backpacks=function()return nil end
+assert(reader.read(.00691).state=='WAIT BACKPACK','dropped pack retained old belt count')
+env.HD2Data.backpacks=function()return{{is_local=true,peer='2222222222222222',backpack={entity=623,owned=true,type='deposit',count=100,max=500}}}end
+assert(reader.read(.00692).state=='WAIT BACKPACK','captured connected weapon used foreign peer pack')
+me.weapon={entity=101,slot='primary',ammo_type='heat',heat={frac=.2,value=20,max=100}}
+v=reader.read(.00693);assert(v.kind=='heat'and not v.backpack_direct,'holstered belt replaced held primary HUD')
 ready=false;assert(reader.read(.007).state=='WAIT HUB');ready=true
 local hub=env.HD2Data;env.HD2Data=nil;assert(reader.read(.008).state=='HUB REQUIRED');env.HD2Data=hub
 hub.version='0.3.0';assert(reader.read(.009).state=='HUB 0.6 REQUIRED');hub.version='0.6.0'
+-- Actual unsupported/alternate held slots must still request Hub packs and
+-- record the input snapshot instead of hiding the reason behind an early return.
+me.weapon={entity=107,slot='held_item',category=4,backpack_fed=false}
+local pack_calls=backpack_reads
+hub.backpacks=function()backpack_reads=backpack_reads+1;return{{is_local=true,peer=me.peer,backpack={entity=600,type='deposit',count=300,max=1000}}}end
+assert(reader.read(10).state=='UNSUPPORTED AMMO','diagnostic route invented belt classification')
+assert(backpack_reads>pack_calls,'alternate held slot did not request Hub backpack snapshot')
+local trace=false
+for _,line in ipairs(input_logs)do if line:find('HUB_INPUT held{entity=107',1,true)then
+ trace=line:find('slot=held_item',1,true)and line:find('backpack_fed=false',1,true)and line:find('count=300',1,true)
+end end
+assert(trace,'unsupported weapon returned before logging Hub inputs')
 reader.shutdown()
 -- Real MDL view: one arc, native text, images, scaling and reload clearing.
 local view=env.require(B..'weapon_view').new(function()end)
+view.update({state='READY',entity=106,kind='ammo',backpack_direct=true,ratio=.75,rounds=750},1,1)
+local belt_number=false
+for _,t in ipairs(text_items())do if t[1]=='750'then belt_number=true end;assert(not t[1]:find('/',1,true),'belt HUD fabricated separate magazine/reserve')end
+assert(belt_number,'direct backpack count not rendered')
 v={state='READY',entity=102,kind='ammo',ratio=.5,rounds=2,mags=4,mode='FLAK',rpm='600 RPM'}
 view.update(v,1,1);assert(count('triangle')>0 and count('text')==4 and count('image')==1)
 local outer={}
@@ -388,6 +471,6 @@ assert(panel_live and not shown_latency and shown_list and not blood_live,'publi
 menu.set('integrated_hud.booster_hud',false);mod.on_update(migrated,0.016)
 assert(not panel_live and not blood_live,'public master toggle ignored')
 mod.on_disable()
-return {mdl_unified_options_migration_and_live_poll=true,weapon_independent_inner_charge_without_numbers=true,weapon_ship_gate_and_scene_transition=true,booster_three_modes_and_panel_visibility=true,squad_boosters_incremental_native_index_and_cache=true,network_boosters_peer_join_no_native_scan=true,squad_boosters_peer_join_and_self=true,squad_boosters_native_images_and_empty_hex=true,squad_boosters_unknown_and_cleanup=true,squad_boosters_upper_left_anchor=true,hub_exact_weapon_no_firing_needed=true,hub_network_ids_separated=true,hub_backpack_fallback_no_double_count=true,hub_backpack_lease_warm_and_pickup_refresh=true,vehicle_hp_measured_center_and_75pct_size=true,hub_heat_magazine_switch=true,hub_backpack_reserve_passthrough=true,
+return {belt_grenade_three_rpm_settings_and_ambiguity=true,hub_captured_three_connected_weapons_false_feed_flag=true,hub_unsupported_input_diagnostics_and_pack_lease=true,hub_direct_backpack_feed_and_empty_count=true,mdl_unified_options_migration_and_live_poll=true,weapon_independent_inner_charge_without_numbers=true,weapon_ship_gate_and_scene_transition=true,booster_three_modes_and_panel_visibility=true,squad_boosters_incremental_native_index_and_cache=true,network_boosters_peer_join_no_native_scan=true,squad_boosters_peer_join_and_self=true,squad_boosters_native_images_and_empty_hex=true,squad_boosters_unknown_and_cleanup=true,squad_boosters_upper_left_anchor=true,hub_exact_weapon_no_firing_needed=true,hub_network_ids_separated=true,hub_backpack_fallback_no_double_count=true,hub_backpack_lease_warm_and_pickup_refresh=true,vehicle_hp_measured_center_and_75pct_size=true,hub_heat_magazine_switch=true,hub_backpack_reserve_passthrough=true,
  hub_reload_hidden=true,hub_respawn_and_disable_clear=true,mdl_native_text_and_images=true,mdl_weapon_fixed_anchor_scale=true,
  mdl_vehicle_adapter=true,mdl_ping_unicode_and_position=true,mdl_one_shot_notice=true,mdl_lifecycle_cleanup=true}

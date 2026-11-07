@@ -9,7 +9,7 @@ function M.new(log)
  local key=nil
  function R.update(v,scale,ammo_scale)
   local screen=c.screen();if not screen then return end
-  local k=table.concat({screen.w,screen.h,scale,ammo_scale,v.state,tostring(v.entity),v.kind or'',tostring(v.charging),number(v.charge_ratio and math.floor(v.charge_ratio*200+.5)),number(v.rounds),number(v.mags),
+  local k=table.concat({screen.w,screen.h,scale,ammo_scale,v.state,tostring(v.entity),v.kind or'',tostring(v.backpack_direct),tostring(v.charging),number(v.charge_ratio and math.floor(v.charge_ratio*200+.5)),number(v.rounds),number(v.mags),
    number(v.heat_percent),tostring(v.overheated),tostring(v.ratio and math.floor(v.ratio*200+.5)),v.mode or'',v.rpm or'',v.safety or''},'/')
   if k~=key then
    c.clear();key=k
@@ -46,7 +46,7 @@ function M.new(log)
      c.add('text',s,xx+scale,yy+scale,{size=size*scale,color={0,0,0,200},align=center and'center'or'left',valign='middle'})
      c.add('text',s,xx,yy,{size=size*scale,color=white,align=center and'center'or'left',valign='middle'})
     end
-    text(v.kind=='heat'and(number(v.heat_percent)..'%')or(number(v.rounds)..' / '..number(v.mags)),
+    text(v.kind=='heat'and(number(v.heat_percent)..'%')or(v.backpack_direct and number(v.rounds)or(number(v.rounds)..' / '..number(v.mags))),
      cfg.count_x,cfg.count_y,cfg.number_height*(v.kind=='heat'and 1 or ammo_scale),true)
     local row=0
     for mode in ((v.mode or'')..'  '):gmatch('(.-)  ')do if mode~=''then

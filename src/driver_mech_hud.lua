@@ -44,15 +44,36 @@ do
   assert(HudNumber.draw(number,x+style.health_center[1]*s,cy,size,.9*a,c,'center'))
   M.draw_key=key
  end
- -- Called only from the original unsupported-seated-vehicle branch. The same
- -- ensure_gui/world selection, menu check and render_view own this view.
+ -- Check the local avatar/body relation before the weaker seat-mask lane.
+ -- A teammate entering a remembered car must not override a proven mech.
+ local observe_entry=Lua51.observe_entry
+ Lua51.observe_entry=function(session,avatar,ids,owned,motion,rotation,where,state)
+  local c=context(session,avatar,M.world,ids)
+  c.avatar_checked=true;c.motion=motion;c.where=where;c.state=state
+  snapshot=reader.update(M.clock,c)
+  if snapshot then
+   local e=Lua51.entry
+   if e then e.bound=nil;e.pending=nil;e.baseline={}end
+   M.lua51_role=nil
+   return false
+  end
+  return observe_entry(session,avatar,ids,owned,motion,rotation,where,state)
+ end
+ local poll=FRV.poll
+ FRV.poll=function(...)
+  if snapshot then
+   if FRV.vehicle then FRV.invalidate('proven_local_mech')end
+   if M.hull then FRV.drop_tank()end
+   FRV.mode='LEGACY';Lua51.ref=nil;Lua51.identity_at=nil
+   return FRV.mode
+  end
+  return poll(...)
+ end
+ -- Same GUI lifetime, menu check and presentation switches as other vehicles.
  M.integrated_mech_prewarm=function(session,avatar,world,owned_ids)
   reader.prewarm(M.clock,context(session,avatar,world,owned_ids))
  end
  M.integrated_mech_render=function(session,avatar,worlds,world,motion,where,state)
-  local c=context(session,avatar,world,M.owned_cache and M.owned_cache.ids)
-  c.avatar_checked=true;c.motion=motion;c.where=where;c.state=state
-  snapshot=reader.update(M.clock,c)
   if not snapshot then clear();return end
   if not ensure_gui(worlds,world)then return end
   if sr.Window and call(sr.Window.show_cursor)==true then clear();return end

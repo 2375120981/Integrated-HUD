@@ -4,6 +4,14 @@ local function call(f,...)if type(f)=='function'then local ok,a=pcall(f,...);if 
 local function finite(v)return type(v)=='number'and v==v and math.abs(v)<1e9 end
 local function entity(v)return finite(v)and v>0 and v==math.floor(v)end
 local function clamp(v)return math.max(0,math.min(1,v))end
+local function fields(t,keys)
+ local out={};t=type(t)=='table'and t or{}
+ for _,k in ipairs(keys)do
+  local v=t[k];local kind=type(v)
+  out[#out+1]=k..'='..((kind=='string'or kind=='number'or kind=='boolean')and tostring(v):sub(1,80):gsub('[%c]',' ')or kind)
+ end
+ return table.concat(out,',')
+end
 local function supported(D)
  local a,b,c=tostring(D.version or''):match('(%d+)%.(%d+)%.(%d+)')
  a,b,c=tonumber(a),tonumber(b),tonumber(c)
@@ -11,7 +19,7 @@ local function supported(D)
 end
 function M.new(E,log)
  local details=require('mods/integrated_hud/mdl_gamesession/weapon_details').new(E,log)
- local R={};local last_context=nil;local next_diag=0;local fed_entities={};local backpack_key=nil
+ local R={};local last_context=nil;local next_diag=0;local next_input_diag=0;local fed_entities={};local backpack_key=nil
  function R.reset()last_context=nil;fed_entities={};backpack_key=nil;details.reset()end
  function R.read(now)
   local D=rawget(_G,'HD2Data')
@@ -31,7 +39,7 @@ function M.new(E,log)
   -- Keep the optional backpack lease warm before a support weapon gets its pack.
   -- This reads Hub snapshots only; no new GameSession/remote-object scan.
   local bp=type(me.backpack)=='table'and me.backpack or nil
-  local rows=(w.slot=='support'or w.backpack_fed==true or fed_entities[w.entity])and call(D.backpacks)or nil
+  local rows=(w.slot=='support'or w.backpack_fed==true or fed_entities[w.entity]or w.ammo_type==nil)and call(D.backpacks)or nil
   local deposit=nil;local ambiguous=false
   for _,p in pairs(type(rows)=='table'and rows or{})do
    if type(p)=='table'and p.is_local==true and type(p.peer)=='string'and type(me.peer)=='string'
@@ -41,6 +49,26 @@ function M.new(E,log)
    end
   end
   if ambiguous then deposit=nil end
+  -- Record inputs BEFORE unsupported-ammo/reload early returns. Keep only
+  -- bounded scalar fields from public Hub snapshots; no native object reads.
+  if log and w.ammo_type==nil and now>=next_input_diag then
+   next_input_diag=now+5
+   local parts={'HUB_INPUT held{'..fields(w,{'entity','category','slot','ammo_type','backpack_fed','rounds','capacity','mags'})..'}',
+    'backpack{'..fields(bp,{'entity','count','max'})..'}',
+    'inventory{'..fields(me.weapons,{'primary','secondary','support'})..'}'}
+   local loadout=type(me.loadout)=='table'and me.loadout or{}
+   for _,slot in ipairs({'primary','secondary','support'})do
+    parts[#parts+1]=slot..'{'..fields(loadout[slot],{'entity','held','ammo_type','backpack_fed'})..'}'
+   end
+   local n=0
+   for _,p in pairs(type(rows)=='table'and rows or{})do
+    n=n+1;if n>4 then break end
+    if type(p)=='table'then
+     parts[#parts+1]='pack_row{'..fields(p,{'peer','is_local','error'})..';'..fields(p.backpack,{'entity','owned','type','count','max','fill'})..'}'
+    end
+   end
+   log(table.concat(parts,' '))
+  end
   local next_key=tostring(bp and bp.entity)..'/'..tostring(deposit and deposit.entity)..'/'
    ..tostring(finite(bp and bp.count)or finite(deposit and deposit.count))
   if backpack_key and next_key~=backpack_key then call(details.refresh)end
@@ -50,7 +78,23 @@ function M.new(E,log)
   local v={state='READY',entity=w.entity,mode='',rpm='',safety=''}
   local extra=details.read(w.entity,now,me)
   if extra and extra.backpack_fed==true then fed_entities[w.entity]=true end
-  if w.ammo_type=='heat'then
+  -- Captured connected weapons report backpack_fed=false: that flag cannot
+  -- identify this path. Corroborate held identity with both Hub inventory views
+  -- and require the current local deposit snapshot instead of a cached count.
+  local support=type(me.loadout)=='table'and me.loadout.support
+  local connected_support=w.category==3 and type(me.weapons)=='table'and me.weapons.support==w.entity
+   and type(support)=='table'and support.entity==w.entity and support.held==true
+   and support.ammo_type==nil and support.rounds==nil and support.capacity==nil
+  local connected_pack=connected_support and deposit and deposit.owned==true and entity(deposit.entity)
+  if w.ammo_type==nil and w.slot=='support'and(w.backpack_fed==true or connected_support)then
+   local pack=connected_pack and deposit or(w.backpack_fed==true and(deposit or(not ambiguous and bp)))
+   local count,maximum=pack and pack.count,pack and pack.max
+   if not finite(count)or not finite(maximum)or count<0 or maximum<=0 or count>maximum then
+    return{state='WAIT BACKPACK',entity=w.entity}
+   end
+   v.kind='ammo';v.backpack_direct=true
+   v.rounds=math.floor(count+.5);v.capacity=maximum;v.ratio=clamp(count/maximum)
+  elseif w.ammo_type=='heat'then
    local h=w.heat
    if type(h)~='table'then return{state='WAIT HEAT',entity=w.entity}end
    local ratio=finite(h.frac)and h.frac or(finite(h.value)and finite(h.max)and h.max>0 and h.value/h.max)
@@ -63,7 +107,7 @@ function M.new(E,log)
    v.mags=finite(w.mags)and math.max(0,math.floor(w.mags+.5))or nil
   else return{state='UNSUPPORTED AMMO',entity=w.entity}end
   if extra then v.mode,v.rpm,v.safety=extra.mode or'',extra.rpm or'',extra.safety or'';v.hash=extra.hash end
-  if v.kind=='ammo'and(w.backpack_fed==true or fed_entities[w.entity])and not finite(w.mags_backpack)then
+  if v.kind=='ammo'and not v.backpack_direct and(w.backpack_fed==true or fed_entities[w.entity])and not finite(w.mags_backpack)then
    local count=bp and bp.count
    if not finite(count)and deposit then count=deposit.count end
    if finite(count)and count>=0 then v.mags=(v.mags or 0)+math.floor(count+.5)end

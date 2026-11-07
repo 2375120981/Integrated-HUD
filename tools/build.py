@@ -82,7 +82,10 @@ def weapon_detail_data():
     types = []
     for line in data['weapons'].splitlines():
         h, name, letters = line.split()
-        types.append({'id': h, 'name': name, 'roles': letters, 'heat': roles['heat']['letter'] in letters})
+        direct_feed = (roles['reload_stage']['letter'] in letters
+                       and not any(roles[k]['letter'] in letters for k in ('rounds', 'slot0', 'heat')))
+        types.append({'id': h, 'name': name, 'roles': letters, 'heat': roles['heat']['letter'] in letters,
+                      'direct_feed': direct_feed})
     return 'return ' + lua_value({'types': types, 'roles': roles,
         'rpmadj': dict(seed['rpmadj'].items()), 'rpmbase': dict(seed['rpmbase'].items()),
         'options1': dict(seed['options1'].items()), 'slots': dict(seed['slot'].items()),
