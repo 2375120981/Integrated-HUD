@@ -113,6 +113,7 @@ def main():
     entry = BASE + 'main'
     sources = {
         entry: read('src/mdl_gamesession.lua'),
+        BASE + 'hud_options': read('src/hud_options.lua'),
         BASE + 'reader': read('src/hub_weapon_reader.lua'),
         BASE + 'weapon_details': read('src/weapon_details.lua'),
         BASE + 'weapon_network_binding': read('src/weapon_network_binding.lua'),

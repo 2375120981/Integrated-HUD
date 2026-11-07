@@ -185,7 +185,7 @@ local current=v
 overrides[B..'reader']={new=function()return{reset=function()end,read=function()reads=reads+1;return current end,shutdown=function()end}end}
 overrides['mods/integrated_hud/driver_reference/driver_core']=function()return{
  update=function()vehicle_updates=vehicle_updates+1 end,set_views=function()end,shutdown=function()vehicle_stops=vehicle_stops+1 end}end
-local mod=env.require(B..'main');local ctx={settings={booster_hud=false}}
+local mod=env.require(B..'main');local ctx={settings={booster_hud=false,network_hud=false}}
 mod.on_enable(ctx);cursor=false;mod.on_update(ctx,.1);assert(reads==1 and vehicle_updates==1 and count()>0)
 ctx.settings.weapon_hud=false;mod.on_setting(ctx,'weapon_hud',false);assert(count()==0)
 mod.on_disable();assert(vehicle_stops==1 and count()==0)
@@ -326,6 +326,49 @@ assert(not blood_live and not panel_live,'all display options off left a panel a
 ctx.settings.network_hud=true;mod.on_setting(ctx,'network_hud',true)
 assert(panel_live and shown_latency and not shown_list and not blood_live,'booster master interfered with RTT')
 mod.on_disable();assert(not panel_live and not blood_live)
-return {weapon_independent_inner_charge_without_numbers=true,weapon_ship_gate_and_scene_transition=true,booster_three_modes_and_panel_visibility=true,squad_boosters_incremental_native_index_and_cache=true,network_boosters_peer_join_no_native_scan=true,squad_boosters_peer_join_and_self=true,squad_boosters_native_images_and_empty_hex=true,squad_boosters_unknown_and_cleanup=true,squad_boosters_upper_left_anchor=true,hub_exact_weapon_no_firing_needed=true,hub_network_ids_separated=true,hub_backpack_fallback_no_double_count=true,hub_backpack_lease_warm_and_pickup_refresh=true,vehicle_hp_measured_center_and_75pct_size=true,hub_heat_magazine_switch=true,hub_backpack_reserve_passthrough=true,
+-- Both MDL entry points share the same public owner and persisted values.
+local public_values={['integrated_hud.weapon_scale']=125}
+local specs={};local fail_key=nil
+local menu={
+ get=function(id)return public_values[id]end,
+ set=function(id,v)public_values[id]=v;return true end,
+ register_option=function(id,spec)
+  if id==fail_key then return false end
+  specs[id]=spec
+  if public_values[id]==nil then public_values[id]=spec.default end
+  return true
+ end
+}
+env.ModOptionsMenu=menu
+local settings=env.require(B..'hud_options').new()
+local migrated={settings={weapon_hud=false,frv_hud=false,tank_hud=false,mech_hud=false,
+ booster_hud=true,booster_display='仅列表',network_hud=false,weapon_scale=75}}
+local fallback=settings.register(migrated)
+assert(#fallback==0,'registered options duplicated in native menu')
+local n=0;for id,spec in pairs(specs)do
+ n=n+1;assert(spec.mod_id==B..'main'and spec.mod=='集成HUD','public settings split into different groups')
+end
+assert(n==12,'incomplete public options menu')
+local values=settings.read(migrated)
+assert(values.weapon_hud==false and values.network_hud==false and values.booster_display=='仅列表','legacy false/choice not migrated')
+assert(values.weapon_scale==125 and migrated.settings.options_menu_migrated_v1,'saved slider overwritten or migration missing')
+menu.set('integrated_hud.network_hud',true);menu.set('integrated_hud.booster_display',1)
+settings.register(migrated);values=settings.read(migrated)
+assert(values.network_hud==true and values.booster_display=='仅血条','stale native settings overwrote public changes')
+fail_key='integrated_hud.tank_hud';fallback=settings.register(migrated)
+assert(#fallback==1 and fallback[1].key=='tank_hud','registration failure must only restore affected native setting')
+fail_key=nil
+-- Main lifecycle consumes public toggles/choice and retains them across enable.
+mod.on_enable(migrated)
+assert(#mod.options==0 and panel_live and shown_latency and not shown_list and blood_live,'main did not consume unified public settings')
+menu.set('integrated_hud.booster_display',2);menu.set('integrated_hud.network_hud',false)
+mod.on_update(migrated,0.016)
+assert(panel_live and not shown_latency and shown_list and not blood_live,'public choice did not apply live')
+mod.on_disable();mod.on_enable(migrated)
+assert(panel_live and not shown_latency and shown_list and not blood_live,'public menu values lost on re-enable')
+menu.set('integrated_hud.booster_hud',false);mod.on_update(migrated,0.016)
+assert(not panel_live and not blood_live,'public master toggle ignored')
+mod.on_disable()
+return {mdl_unified_options_migration_and_live_poll=true,weapon_independent_inner_charge_without_numbers=true,weapon_ship_gate_and_scene_transition=true,booster_three_modes_and_panel_visibility=true,squad_boosters_incremental_native_index_and_cache=true,network_boosters_peer_join_no_native_scan=true,squad_boosters_peer_join_and_self=true,squad_boosters_native_images_and_empty_hex=true,squad_boosters_unknown_and_cleanup=true,squad_boosters_upper_left_anchor=true,hub_exact_weapon_no_firing_needed=true,hub_network_ids_separated=true,hub_backpack_fallback_no_double_count=true,hub_backpack_lease_warm_and_pickup_refresh=true,vehicle_hp_measured_center_and_75pct_size=true,hub_heat_magazine_switch=true,hub_backpack_reserve_passthrough=true,
  hub_reload_hidden=true,hub_respawn_and_disable_clear=true,mdl_native_text_and_images=true,mdl_weapon_fixed_anchor_scale=true,
  mdl_vehicle_adapter=true,mdl_ping_unicode_and_position=true,mdl_one_shot_notice=true,mdl_lifecycle_cleanup=true}
