@@ -61,6 +61,25 @@ owned={201,202};types[202]=t.name;detail.reset()
 assert(detail.read(4194505,1,identity)==nil,'ambiguous local carried weapons guessed a mode')
 owned={201,203};detail.reset();assert(detail.read(4194505,2,identity).mode=='FLAK'and gone_type_reads==0,'gone object reached type/field reads')
 assert(#checked>0)
+-- Both charged weapons must bind to the support slot.
+owned={201}
+local function charged_weapon(hash,slot,fm)
+ types[201]=assert(type_by_hash[hash]).name
+ fields[meta.roles.fire_mode.name]=fm
+ identity.weapon.slot=slot
+ detail.reset()
+ local result
+ for i=0,12 do result=detail.read(identity.weapon.entity,3+i*.2,identity);if result then break end end
+ return result
+end
+local safe=charged_weapon('26acc614','support',5)
+assert(safe and safe.hash=='26acc614'and safe.safety=='SAFE','support Railgun lost SAFE mode')
+local unsafe=charged_weapon('26acc614','support',6)
+assert(unsafe and unsafe.safety=='UNSAFE','support Railgun lost UNSAFE mode')
+local epoch=charged_weapon('314a1bf5','support',6)
+assert(epoch and epoch.hash=='314a1bf5'and not epoch.safety,'support Epoch displayed Railgun safety')
+assert(not charged_weapon('26acc614','primary',6),'Railgun bound to primary slot')
+assert(not charged_weapon('314a1bf5','primary',6),'Epoch bound to primary slot')
 -- No supplemental selector is allowed to influence Hub's identity or ammo type.
 local details_read={};local extra_available=true;local detail_refreshes=0;local backpack_reads=0
 overrides[B..'weapon_details']={new=function()return{read=function(id)details_read[#details_read+1]=id;if extra_available then return{mode='FLAK',backpack_fed=id==105}end end,reset=function()end,refresh=function()detail_refreshes=detail_refreshes+1 end}end}

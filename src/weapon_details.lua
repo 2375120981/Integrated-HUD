@@ -78,7 +78,8 @@ function M.new(E,log)
   local main=finite(fm)and math.floor(fm/8)%2==0
   if UB[t.id]then mode=UB[t.id][finite(fm)and not main and 2 or 1]end
   if t.id=='cfaa9ddc'and main then mode=({[1]='AUTO',[4]='VOLLEY',[7]='TOTAL'})[fm%8]end
-  local safety=main and({[5]='SAFE',[6]='UNSAFE'})[fm%8]or nil
+  -- Epoch also uses mode 6 internally, but has no selectable safety mode.
+  local safety=t.id=='26acc614'and main and({[5]='SAFE',[6]='UNSAFE'})[fm%8]or nil
   local guide=read_field(s,id,t,'guide')
   if guide==true or guide==false then mode=(mode and mode..'  'or'')..(guide and'LASER'or'NO LASER')end
   local setting=nil

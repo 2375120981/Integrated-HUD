@@ -2,7 +2,9 @@
 -- carried objects in the authoritative inventory slot. Never choose HUD ammo.
 local M={}
 local SLOT={primary=1,secondary=2,support=3}
-local OVERRIDE={cfaa9ddc=1,['9c06f074']=1,cd0e4b4a=1,['3244dc49']=1,['656d507b']=3}
+-- Both Railgun and Epoch use the support slot; override the learned seed.
+local OVERRIDE={cfaa9ddc=1,['9c06f074']=1,cd0e4b4a=1,['3244dc49']=1,['656d507b']=3,
+ ['26acc614']=3,['314a1bf5']=3}
 local function call(f,...)if type(f)=='function'then local ok,a=pcall(f,...);if ok then return a end end end
 local function finite(v)return type(v)=='number'and v==v and math.abs(v)<1e9 end
 local function peer(v)return type(v)=='string'and v:lower():gsub('^0+','')or nil end
