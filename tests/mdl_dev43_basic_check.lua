@@ -67,11 +67,39 @@ overrides[B..'weapon_details']={new=function()return{read=function(id)details_re
 local me={entity=10,player_entity=1,peer='1111111111111111',life='alive',alive=true,
  weapon={entity=101,slot='primary',ammo_type='heat',heat={value=30,max=100,frac=.3,locked=false},reload={active=false}}}
 local ready=true
-env.HD2Data={version='0.6.0',ready=function()return ready end,player_ammo=function()return me end,backpacks=function()backpack_reads=backpack_reads+1;return nil end}
+local weapon_mission={in_mission=true,epoch=1}
+local weapon_ammo_reads=0
+env.HD2Data={version='0.6.0',ready=function()return ready end,mission=function()return weapon_mission end,player_ammo=function()weapon_ammo_reads=weapon_ammo_reads+1;return me end,backpacks=function()backpack_reads=backpack_reads+1;return nil end}
 local reader=env.require(B..'reader').new(E,function()end)
 local v=reader.read(0);assert(v.kind=='heat'and v.entity==101 and v.heat_percent==30)
+me.weapon.heat.charge=50;me.weapon.heat.charging=true
+v=reader.read(.00001);assert(v.ratio==.3 and v.charge_ratio==.5 and v.heat_percent==30,'charge overwrote heat display')
+me.weapon.heat.charging=false;assert(not reader.read(.00002).charging,'cancel did not hide heat charge')
+me.weapon.heat.charge=nil
+
+weapon_mission={in_mission=false,epoch=0}
+local ammo_before=weapon_ammo_reads;local details_before=#details_read
+assert(reader.read(.0001).state=='NO MISSION'and weapon_ammo_reads==ammo_before and #details_read==details_before,'ship weapon data reached HUD/supplemental reader')
+local mission_api=env.HD2Data.mission
+env.HD2Data.mission=function()return nil end
+assert(reader.read(.0002).state=='NO MISSION','unknown scene displayed weapon HUD')
+env.HD2Data.mission=mission_api;weapon_mission={in_mission=true,epoch=1}
+assert(reader.read(.0003).state=='READY','mission weapon HUD failed to restore')
+-- Ship transition/epoch change while the ammo snapshot is being read.
+local ammo_api=env.HD2Data.player_ammo
+env.HD2Data.player_ammo=function()weapon_mission={in_mission=false,epoch=2};return me end
+assert(reader.read(.0004).state=='NO MISSION','ship transition leaked a READY snapshot')
+weapon_mission={in_mission=true,epoch=3}
+env.HD2Data.player_ammo=function()weapon_mission={in_mission=true,epoch=4};return me end
+assert(reader.read(.0005).state=='NO MISSION','changed mission epoch leaked a READY snapshot')
+env.HD2Data.player_ammo=ammo_api;weapon_mission={in_mission=true,epoch=4}
+
 me.weapon={entity=102,slot='secondary',ammo_type='magazine',rounds=2,capacity=3,mags=4,reload={active=false}}
 v=reader.read(.001);assert(v.kind=='ammo'and v.entity==102 and v.rounds==2 and v.mags==4,'switch without firing remained stale')
+me.weapon.charge=.7;v=reader.read(.0011)
+assert(v.charge_ratio==.7 and v.ratio==2/3 and v.rounds==2,'ammo charge did not stay independent')
+me.weapon.charge=0;assert(not reader.read(.0012).charging,'released ammo charge remained visible')
+
 me.weapon.entity=103;me.weapon.rounds=7;me.weapon.mags=5
 v=reader.read(.002);assert(v.entity==103 and v.rounds==7,'support identity failed')
 me.weapon.reload.active=true;assert(reader.read(.003).state=='RELOADING')
@@ -100,6 +128,22 @@ reader.shutdown()
 local view=env.require(B..'weapon_view').new(function()end)
 v={state='READY',entity=102,kind='ammo',ratio=.5,rounds=2,mags=4,mode='FLAK',rpm='600 RPM'}
 view.update(v,1,1);assert(count('triangle')>0 and count('text')==4 and count('image')==1)
+local outer={}
+for _,c in ipairs(canvases)do if c.opts.layer==50 then for _,i in ipairs(c.items)do
+ if i.kind=='triangle'and #outer<120 then outer[#outer+1]=i.args end
+end end end
+v.charging=true;v.charge_ratio=.7;v.charge_percent=70;view.update(v,1,1)
+local index,cyan=0,0
+for _,c in ipairs(canvases)do if c.opts.layer==50 then for _,i in ipairs(c.items)do if i.kind=='triangle'then
+ index=index+1
+ if index<=120 then for k=1,6 do assert(i.args[k]==outer[index][k],'charging moved outer ammo arc')end end
+ if i.args[7][1]==100 and i.args[7][4]>0 then
+  cyan=cyan+1;for k=1,5,2 do local x,y=i.args[k]-960,i.args[k+1]-540;assert(math.sqrt(x*x+y*y)<153,'charge arc not inside ammo arc')end
+ end
+end end end end
+assert(cyan>0 and count('text')==4,'charge arc missing or introduced charge text')
+for _,t in ipairs(text_items())do assert(t[1]~='70%','charge percentage leaked into HUD')end
+v.charging=nil;v.charge_ratio=nil;v.charge_percent=nil;view.update(v,1,1)
 local arcs=count('triangle');v.ratio=.2;view.update(v,1,1);assert(count('triangle')==arcs,'arc cannot use MDL in-place updates');v.ratio=.5;view.update(v,1,1)
 local old=finishes;view.update(v,1,1);assert(finishes==old,'stable MDL content rebuilt')
 local ammo=text_items()[2];assert(ammo[1]=='2 / 4'and ammo[4].size==24)
@@ -107,6 +151,8 @@ local x,y=ammo[2],ammo[3]
 view.update(v,1.5,1.5);ammo=text_items()[2]
 assert(math.abs(ammo[2]-(960+(x-960)*1.5))<1e-6 and math.abs(ammo[3]-(540+(y-540)*1.5))<1e-6,'fixed anchor lost')
 assert(ammo[4].size==54,'ammo size did not compose')
+view.update({state='NO MISSION'},1,1);assert(count()==0,'ship did not clear weapon drawings')
+view.update(v,1,1)
 view.update({state='RELOADING'},1,1);assert(count()==0,'reload did not hide HUD')
 view.update(v,1,1);env.MDL3.gui=api();view.update(v,1,1);assert(count()>0,'GUI provider reload lost drawings')
 view.shutdown();assert(count()==0)
@@ -280,6 +326,6 @@ assert(not blood_live and not panel_live,'all display options off left a panel a
 ctx.settings.network_hud=true;mod.on_setting(ctx,'network_hud',true)
 assert(panel_live and shown_latency and not shown_list and not blood_live,'booster master interfered with RTT')
 mod.on_disable();assert(not panel_live and not blood_live)
-return {booster_three_modes_and_panel_visibility=true,squad_boosters_incremental_native_index_and_cache=true,network_boosters_peer_join_no_native_scan=true,squad_boosters_peer_join_and_self=true,squad_boosters_native_images_and_empty_hex=true,squad_boosters_unknown_and_cleanup=true,squad_boosters_upper_left_anchor=true,hub_exact_weapon_no_firing_needed=true,hub_network_ids_separated=true,hub_backpack_fallback_no_double_count=true,hub_backpack_lease_warm_and_pickup_refresh=true,vehicle_hp_measured_center_and_75pct_size=true,hub_heat_magazine_switch=true,hub_backpack_reserve_passthrough=true,
+return {weapon_independent_inner_charge_without_numbers=true,weapon_ship_gate_and_scene_transition=true,booster_three_modes_and_panel_visibility=true,squad_boosters_incremental_native_index_and_cache=true,network_boosters_peer_join_no_native_scan=true,squad_boosters_peer_join_and_self=true,squad_boosters_native_images_and_empty_hex=true,squad_boosters_unknown_and_cleanup=true,squad_boosters_upper_left_anchor=true,hub_exact_weapon_no_firing_needed=true,hub_network_ids_separated=true,hub_backpack_fallback_no_double_count=true,hub_backpack_lease_warm_and_pickup_refresh=true,vehicle_hp_measured_center_and_75pct_size=true,hub_heat_magazine_switch=true,hub_backpack_reserve_passthrough=true,
  hub_reload_hidden=true,hub_respawn_and_disable_clear=true,mdl_native_text_and_images=true,mdl_weapon_fixed_anchor_scale=true,
  mdl_vehicle_adapter=true,mdl_ping_unicode_and_position=true,mdl_one_shot_notice=true,mdl_lifecycle_cleanup=true}

@@ -14,9 +14,11 @@
   "reserve_height": 16,
   "capacity_unverified": true,
   "reload_scope": "hidden_while_reloading",
-  "arc_count": 1,
+  "arc_count": 2,
   "display_priority": [
     "heat",
     "ammo"
-  ]
+  ],
+  "charge_display": "independent inner arc, visible only while charging; no charge number",
+  "charge_inner_gap": 7
 }

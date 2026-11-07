@@ -18,11 +18,12 @@ function M.new(E,log)
   if type(D)~='table'then R.reset();return{state='HUB REQUIRED'}end
   if not supported(D)then R.reset();return{state='HUB 0.6 REQUIRED'}end
   if call(D.ready)~=true then R.reset();return{state='WAIT HUB'}end
+  local mission=call(D.mission)
+  if type(mission)~='table'or mission.in_mission~=true then R.reset();return{state='NO MISSION'}end
   local me=call(D.player_ammo)
   if type(me)~='table'or not entity(me.entity)or me.alive==false or me.life=='dead'then
    R.reset();return{state='NO AVATAR'}
   end
-  local mission=call(D.mission)
   local context=tostring(D)..'/'..tostring(type(mission)=='table'and mission.epoch)..'/'..tostring(me.peer)..'/'..me.entity..'/'..tostring(me.player_entity)
   if context~=last_context then details.reset();fed_entities={};backpack_key=nil;last_context=context end
   local w=me.weapon
@@ -67,6 +68,20 @@ function M.new(E,log)
    if not finite(count)and deposit then count=deposit.count end
    if finite(count)and count>=0 then v.mags=(v.mags or 0)+math.floor(count+.5)end
   end
+  -- Charge data is taken from the same authoritative held-weapon snapshot.
+  local charge=nil;local charge_source=nil
+  if v.kind=='heat'then
+   local h=w.heat
+   if type(h)=='table'and h.charging==true and finite(h.charge)and h.charge>0.00001 then
+    charge=h.charge/100;charge_source='heat.charge/100'
+   end
+  elseif finite(w.charge)and w.charge>0.00001 then
+   charge=w.charge;charge_source='weapon.charge'
+  end
+  if charge then
+   v.charging=true;v.charge_source=charge_source;v.charge_raw=charge
+   v.charge_ratio=clamp(charge);v.charge_percent=math.floor(charge*100+.5)
+  end
   if now>=next_diag then
    next_diag=now+5
    if log then log('HUB_WEAPON entity='..tostring(w.entity)..' slot='..tostring(w.slot)..' kind='..tostring(w.ammo_type)
@@ -76,6 +91,10 @@ function M.new(E,log)
   end
   -- A reloaded Hub must not publish a snapshot from its former instance.
   if rawget(_G,'HD2Data')~=D or call(D.ready)~=true then R.reset();return{state='WAIT HUB'}end
+  local after=call(D.mission)
+  if type(after)~='table'or after.in_mission~=true or after.epoch~=mission.epoch then
+   R.reset();return{state='NO MISSION'}
+  end
   return v
  end
  function R.shutdown()R.reset()end

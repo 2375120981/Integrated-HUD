@@ -9,7 +9,7 @@ function M.new(log)
  local key=nil
  function R.update(v,scale,ammo_scale)
   local screen=c.screen();if not screen then return end
-  local k=table.concat({screen.w,screen.h,scale,ammo_scale,v.state,tostring(v.entity),v.kind or'',number(v.rounds),number(v.mags),
+  local k=table.concat({screen.w,screen.h,scale,ammo_scale,v.state,tostring(v.entity),v.kind or'',tostring(v.charging),number(v.charge_ratio and math.floor(v.charge_ratio*200+.5)),number(v.rounds),number(v.mags),
    number(v.heat_percent),tostring(v.overheated),tostring(v.ratio and math.floor(v.ratio*200+.5)),v.mode or'',v.rpm or'',v.safety or''},'/')
   if k~=key then
    c.clear();key=k
@@ -35,6 +35,12 @@ function M.new(log)
     local outer=cfg.radius+2;local inner=outer-cfg.thickness
     band(outer+1,inner-1,1,.75,{0,0,0});band(outer,inner,1,.18,white)
     band(outer,inner,math.max(0,math.min(1,v.ratio or 0)),.95,v.kind=='heat'and(v.overheated and{235,60,45}or{236,190,72})or white)
+    -- A separate concentric charge arc, inside the unchanged ammo/heat arc.
+    local charge_outer=inner-7;local charge_inner=charge_outer-cfg.thickness
+    local visible=v.charging and 1 or 0
+    band(charge_outer+1,charge_inner-1,1,.75*visible,{0,0,0})
+    band(charge_outer,charge_inner,1,.18*visible,{100,220,255})
+    band(charge_outer,charge_inner,math.max(0,math.min(1,v.charge_ratio or 0)),.95*visible,{100,220,255})
     local function text(s,x,y,size,center)
      local xx,yy=cx+x*scale,cy-y*scale
      c.add('text',s,xx+scale,yy+scale,{size=size*scale,color={0,0,0,200},align=center and'center'or'left',valign='middle'})
