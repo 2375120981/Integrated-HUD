@@ -98,9 +98,44 @@ owned={201,202};types[202]=belt_type.name;detail.reset()
 assert(detail.read(identity.weapon.entity,20,identity)==nil,'ambiguous belt objects guessed RPM')
 owned={201};identity.loadout.support.held=false;detail.reset()
 assert(detail.read(identity.weapon.entity,21,identity)==nil,'holstered belt object supplied RPM')
+-- Underbarrels corroborate ammo via a typed rifle->child reference, never pose.
+local old_field=E.GameSession.game_object_field
+local child_rounds=1;local child_reserve=6;local child_reload=0
+E.GameSession.game_object_field=function(session,id,name)
+ if id==202 and(name==meta.roles.magazines.name or name==meta.roles.spare.name)then return child_reserve end
+ if id==202 and name==meta.roles.reload_stage.name then return child_reload end
+ if id==202 and(name==meta.roles.rounds.name or name==meta.roles.slot0.name)then return child_rounds end
+ return old_field(session,id,name)
+end
+identity.weapon={entity=4194507,slot='primary',ammo_type='magazine',rounds=1}
+for _,pair in ipairs({{'3244dc49','16425925','8MM','40MM HE'},
+ {'8fcdd35c','da0f356e','4MM','10G'},{'cd0e4b4a','2166c7a1','12MM','FLAME'}})do
+ types[201]=assert(type_by_hash[pair[1]]).name;types[202]=assert(type_by_hash[pair[2]]).name
+ owned={201,202}
+ fields[meta.roles.underbarrel.name]=202
+ fields[meta.roles.rounds.name]=30;fields[meta.roles.slot0.name]=30
+ fields[meta.roles.fire_mode.name]=9
+ detail.reset()
+ local result
+ for j=0,30 do result=detail.read(identity.weapon.entity,30+j*.2,identity);if result then break end end
+ assert(result and result.hash==pair[1]and result.mode==pair[4],'linked underbarrel mode missing')
+ assert(result.underbarrel_active and result.underbarrel_ammo.rounds==1 and result.underbarrel_ammo.mags==6,'child ammo borrowed rifle contents')
+ child_rounds=0;child_reserve=5;child_reload=1
+ result=detail.read(identity.weapon.entity,38,identity)
+ assert(result.underbarrel_ammo.rounds==0 and result.underbarrel_ammo.mags==5 and result.underbarrel_ammo.reload.active,'child ammo/reload did not refresh')
+ child_rounds=1;child_reserve=6;child_reload=0
+ -- Switching selectors while staying on the same Hub entity refreshes the label.
+ fields[meta.roles.fire_mode.name]=1;identity.weapon.rounds=30
+ assert(detail.read(identity.weapon.entity,40,identity).mode==pair[3],'main ammo label stale')
+ fields[meta.roles.fire_mode.name]=9;identity.weapon.rounds=1
+ assert(detail.read(identity.weapon.entity,41,identity).mode==pair[4],'underbarrel label stale')
+ fields[meta.roles.underbarrel.name]=32767;detail.reset()
+ assert(not detail.read(identity.weapon.entity,42,identity),'unlinked child supplied mode')
+end
+E.GameSession.game_object_field=old_field
 -- No supplemental selector is allowed to influence Hub's identity or ammo type.
-local details_read={};local extra_available=true;local detail_refreshes=0;local backpack_reads=0
-overrides[B..'weapon_details']={new=function()return{read=function(id)details_read[#details_read+1]=id;if extra_available then return{mode='FLAK',backpack_fed=id==105}end end,reset=function()end,refresh=function()detail_refreshes=detail_refreshes+1 end}end}
+local details_read={};local extra_available=true;local underbarrel_extra=nil;local detail_refreshes=0;local backpack_reads=0
+overrides[B..'weapon_details']={new=function()return{read=function(id)details_read[#details_read+1]=id;if underbarrel_extra then return underbarrel_extra end;if extra_available then return{mode='FLAK',backpack_fed=id==105}end end,reset=function()end,refresh=function()detail_refreshes=detail_refreshes+1 end}end}
 local me={entity=10,player_entity=1,peer='1111111111111111',life='alive',alive=true,
  weapon={entity=101,slot='primary',ammo_type='heat',heat={value=30,max=100,frac=.3,locked=false},reload={active=false}}}
 local ready=true
@@ -110,6 +145,18 @@ env.HD2Data={version='0.6.0',ready=function()return ready end,mission=function()
 local input_logs={}
 local reader=env.require(B..'reader').new(E,function(line)input_logs[#input_logs+1]=line end)
 local v=reader.read(0);assert(v.kind=='heat'and v.entity==101 and v.heat_percent==30)
+-- Active linked ammo replaces main-gun heat/counts, without mutating Hub.
+underbarrel_extra={mode='40MM HE',underbarrel_active=true,
+ underbarrel_ammo={entity=101,ammo_type='magazine',rounds=1,capacity=1,mags=4,reload={active=false}}}
+v=reader.read(.000001)
+assert(v.kind=='ammo'and v.rounds==1 and v.mags==4 and v.ratio==1 and v.mode=='40MM HE','underbarrel UI used main ammo')
+assert(me.weapon.ammo_type=='heat','underbarrel mutated Hub snapshot')
+underbarrel_extra.underbarrel_ammo.reload.active=true
+assert(reader.read(.000002).state=='RELOADING','child reload did not hide HUD')
+underbarrel_extra.underbarrel_ammo=nil
+assert(reader.read(.000003).state=='WAIT UNDERBARREL','missing child leaked main ammo')
+underbarrel_extra=nil
+assert(reader.read(.000004).kind=='heat','switching back failed to restore main ammo')
 me.weapon.heat.charge=50;me.weapon.heat.charging=true
 v=reader.read(.00001);assert(v.ratio==.3 and v.charge_ratio==.5 and v.heat_percent==30,'charge overwrote heat display')
 me.weapon.heat.charging=false;assert(not reader.read(.00002).charging,'cancel did not hide heat charge')
@@ -283,12 +330,19 @@ notice.update('success',0);assert(count('rect')==1 and count('text')==5)
 assert(text_items()[1][1]:find('成功启用',1,true));notice.shutdown();assert(count()==0)
 -- Managed toggles still dispatch and independently stop each view.
 local reads,vehicle_updates,vehicle_stops=0,0,0
+local weapon_blocked=false
 local current=v
 overrides[B..'reader']={new=function()return{reset=function()end,read=function()reads=reads+1;return current end,shutdown=function()end}end}
 overrides['mods/integrated_hud/driver_reference/driver_core']=function()return{
- update=function()vehicle_updates=vehicle_updates+1 end,set_views=function()end,shutdown=function()vehicle_stops=vehicle_stops+1 end}end
+ update=function()vehicle_updates=vehicle_updates+1 end,weapon_blocked=function()return weapon_blocked end,set_views=function()end,shutdown=function()vehicle_stops=vehicle_stops+1 end}end
 local mod=env.require(B..'main');local ctx={settings={booster_hud=false,network_hud=false}}
 mod.on_enable(ctx);cursor=false;mod.on_update(ctx,.1);assert(reads==1 and vehicle_updates==1 and count()>0)
+weapon_blocked=true;mod.on_update(ctx,.1);assert(count()==0,'restricted vehicle seat did not hide weapon HUD')
+weapon_blocked=false;mod.on_update(ctx,.1);assert(count()>0,'passenger seat did not restore weapon HUD')
+ctx.settings.frv_hud=false;ctx.settings.tank_hud=false;ctx.settings.mech_hud=false
+mod.on_setting(ctx,'frv_hud',false)
+weapon_blocked=true;mod.on_update(ctx,.1);assert(count()==0 and vehicle_stops==0,'vehicle toggles disabled seat filtering')
+weapon_blocked=false;mod.on_update(ctx,.1);assert(count()>0,'disabled vehicle views blocked passenger weapon HUD')
 ctx.settings.weapon_hud=false;mod.on_setting(ctx,'weapon_hud',false);assert(count()==0)
 mod.on_disable();assert(vehicle_stops==1 and count()==0)
 -- Booster provider: join shuffled arrays by peer; keep self on its own row.
@@ -448,9 +502,34 @@ local migrated={settings={weapon_hud=false,frv_hud=false,tank_hud=false,mech_hud
 local fallback=settings.register(migrated)
 assert(#fallback==0,'registered options duplicated in native menu')
 local n=0;for id,spec in pairs(specs)do
- n=n+1;assert(spec.mod_id==B..'main'and spec.mod=='集成HUD','public settings split into different groups')
+ n=n+1;assert(spec.mod_id==B..'main'and type(spec.mod)=='function'and spec.mod()=='Integrated HUD','public settings split into different groups')
 end
-assert(n==12,'incomplete public options menu')
+assert(n==13,'incomplete public options menu')
+-- Dynamic text follows MDL by default; forcing Chinese does not change values.
+local loc=env.require(B..'localization')
+local language_spec=specs['integrated_hud.language']
+assert(language_spec.default==1 and #language_spec.choices==2 and language_spec.choices[1]()=='Follow MDL','language defaults/options differ from request')
+env.MDL={i18n={code='en'}}
+assert(loc.code()=='en'and specs['integrated_hud.weapon_hud'].label()=='Weapon HUD','English MDL not followed')
+local label_callback=specs['integrated_hud.weapon_hud'].label
+local boost_choices=specs['integrated_hud.booster_display'].choices
+env.MDL.i18n.code='zh_hans'
+assert(loc.code()=='zh-CN'and label_callback()=='武器 HUD'and boost_choices[2]()=='仅列表','MDL language change did not refresh dynamic strings')
+menu.set('integrated_hud.language',2);env.MDL.i18n.code='en'
+assert(loc.code()=='zh-CN'and label_callback()=='武器 HUD','forced Chinese followed English MDL')
+local catalogs=env.require(B..'locale_data');local saved_label=catalogs['zh-CN'].strings['options.tank_hud.label']
+catalogs['zh-CN'].strings['options.tank_hud.label']=nil
+assert(specs['integrated_hud.tank_hud'].label()=='Tank HUD','missing translation did not fall back to English')
+catalogs['zh-CN'].strings['options.tank_hud.label']=saved_label
+settings.register(migrated)
+assert(specs['integrated_hud.weapon_hud'].label==label_callback and loc.code()=='zh-CN','re-enable recreated text callbacks or lost language preference')
+menu.set('integrated_hud.language',1);env.MDL.i18n.code='fr'
+assert(loc.code()=='en'and label_callback()=='Weapon HUD','untranslated MDL language did not fall back')
+env.MDL.i18n.code='auto';env.MDL3.ui={language='zh-CN'}
+assert(loc.code()=='zh-CN','MDL3 UI language fallback missing')
+env.MDL3.ui=nil;env.MDL.i18n.code='en'
+assert(settings.read(migrated).booster_display=='仅列表','translated choice changed internal booster mode')
+
 local values=settings.read(migrated)
 assert(values.weapon_hud==false and values.network_hud==false and values.booster_display=='仅列表','legacy false/choice not migrated')
 assert(values.weapon_scale==125 and migrated.settings.options_menu_migrated_v1,'saved slider overwritten or migration missing')
@@ -471,6 +550,6 @@ assert(panel_live and not shown_latency and shown_list and not blood_live,'publi
 menu.set('integrated_hud.booster_hud',false);mod.on_update(migrated,0.016)
 assert(not panel_live and not blood_live,'public master toggle ignored')
 mod.on_disable()
-return {belt_grenade_three_rpm_settings_and_ambiguity=true,hub_captured_three_connected_weapons_false_feed_flag=true,hub_unsupported_input_diagnostics_and_pack_lease=true,hub_direct_backpack_feed_and_empty_count=true,mdl_unified_options_migration_and_live_poll=true,weapon_independent_inner_charge_without_numbers=true,weapon_ship_gate_and_scene_transition=true,booster_three_modes_and_panel_visibility=true,squad_boosters_incremental_native_index_and_cache=true,network_boosters_peer_join_no_native_scan=true,squad_boosters_peer_join_and_self=true,squad_boosters_native_images_and_empty_hex=true,squad_boosters_unknown_and_cleanup=true,squad_boosters_upper_left_anchor=true,hub_exact_weapon_no_firing_needed=true,hub_network_ids_separated=true,hub_backpack_fallback_no_double_count=true,hub_backpack_lease_warm_and_pickup_refresh=true,vehicle_hp_measured_center_and_75pct_size=true,hub_heat_magazine_switch=true,hub_backpack_reserve_passthrough=true,
+return {localization_dynamic_callbacks_two_choices_and_mdl_default=true,belt_grenade_three_rpm_settings_and_ambiguity=true,hub_captured_three_connected_weapons_false_feed_flag=true,hub_unsupported_input_diagnostics_and_pack_lease=true,hub_direct_backpack_feed_and_empty_count=true,mdl_unified_options_migration_and_live_poll=true,weapon_independent_inner_charge_without_numbers=true,weapon_ship_gate_and_scene_transition=true,booster_three_modes_and_panel_visibility=true,squad_boosters_incremental_native_index_and_cache=true,network_boosters_peer_join_no_native_scan=true,squad_boosters_peer_join_and_self=true,squad_boosters_native_images_and_empty_hex=true,squad_boosters_unknown_and_cleanup=true,squad_boosters_upper_left_anchor=true,hub_exact_weapon_no_firing_needed=true,hub_network_ids_separated=true,hub_backpack_fallback_no_double_count=true,hub_backpack_lease_warm_and_pickup_refresh=true,vehicle_hp_measured_center_and_75pct_size=true,hub_heat_magazine_switch=true,hub_backpack_reserve_passthrough=true,
  hub_reload_hidden=true,hub_respawn_and_disable_clear=true,mdl_native_text_and_images=true,mdl_weapon_fixed_anchor_scale=true,
  mdl_vehicle_adapter=true,mdl_ping_unicode_and_position=true,mdl_one_shot_notice=true,mdl_lifecycle_cleanup=true}

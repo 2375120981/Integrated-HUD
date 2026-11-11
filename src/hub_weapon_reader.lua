@@ -1,4 +1,4 @@
--- Hub owns identity and ammo. The supplemental reader never selects a weapon.
+-- Hub owns held identity and main ammo; a verified linked active underbarrel supplies its own ammo.
 local M={}
 local function call(f,...)if type(f)=='function'then local ok,a=pcall(f,...);if ok then return a end end end
 local function finite(v)return type(v)=='number'and v==v and math.abs(v)<1e9 end
@@ -77,7 +77,13 @@ function M.new(E,log)
   if type(w.reload)=='table'and w.reload.active==true then return{state='RELOADING',entity=w.entity}end
   local v={state='READY',entity=w.entity,mode='',rpm='',safety=''}
   local extra=details.read(w.entity,now,me)
-  if extra and extra.backpack_fed==true then fed_entities[w.entity]=true end
+  if extra and extra.underbarrel_active then
+   if type(extra.underbarrel_ammo)~='table'then return{state='WAIT UNDERBARREL',entity=w.entity}end
+   -- Local replacement only: never mutate the Hub snapshot or held identity.
+   w=extra.underbarrel_ammo
+   if type(w.reload)=='table'and w.reload.active then return{state='RELOADING',entity=v.entity}end
+  end
+  if extra and not extra.underbarrel_active and extra.backpack_fed==true then fed_entities[w.entity]=true end
   -- Captured connected weapons report backpack_fed=false: that flag cannot
   -- identify this path. Corroborate held identity with both Hub inventory views
   -- and require the current local deposit snapshot instead of a cached count.
@@ -107,7 +113,7 @@ function M.new(E,log)
    v.mags=finite(w.mags)and math.max(0,math.floor(w.mags+.5))or nil
   else return{state='UNSUPPORTED AMMO',entity=w.entity}end
   if extra then v.mode,v.rpm,v.safety=extra.mode or'',extra.rpm or'',extra.safety or'';v.hash=extra.hash end
-  if v.kind=='ammo'and not v.backpack_direct and(w.backpack_fed==true or fed_entities[w.entity])and not finite(w.mags_backpack)then
+  if v.kind=='ammo'and not(extra and extra.underbarrel_active)and not v.backpack_direct and(w.backpack_fed==true or fed_entities[w.entity])and not finite(w.mags_backpack)then
    local count=bp and bp.count
    if not finite(count)and deposit then count=deposit.count end
    if finite(count)and count>=0 then v.mags=(v.mags or 0)+math.floor(count+.5)end

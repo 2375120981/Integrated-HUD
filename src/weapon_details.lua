@@ -9,6 +9,7 @@ local OPTIONS={
  ['656d507b']={4,'BURST','ARTILLERY'}
 }
 local UB={cd0e4b4a={'12MM','FLAME'},['8fcdd35c']={'4MM','10G'},['3244dc49']={'8MM','40MM HE'}}
+local CHILD={['3244dc49']='16425925',['8fcdd35c']='da0f356e',cd0e4b4a='2166c7a1'}
 local function call(f,...)if type(f)=='function'then local ok,a=pcall(f,...);if ok then return a end end end
 local function finite(v)return type(v)=='number'and v==v and math.abs(v)<1e9 end
 local function norm(v)
@@ -18,6 +19,8 @@ end
 function M.new(E,log)
  local G,N=E.GameSession or{},E.Network or{}
  local R={};local verified={};local next_read=0;local last_id,last_session,last_result=nil,nil,nil
+ local by_hash={};for _,t in ipairs(DATA.types)do by_hash[t.id]=t end
+ local ammo_max={}
  local rpm_seen={};local rpmadj={};local bases={};local option_values={}
  for h,v in pairs(DATA.rpmadj)do rpmadj[h]=v end
  for h,v in pairs(DATA.rpmbase)do bases[h]=v end
@@ -39,7 +42,7 @@ function M.new(E,log)
    if id then found[id]=true end
   end
   local good=true
-  for _,role in ipairs({'options','fire_mode','rpm','selected','guide','carry','owner','floor','rounds','slot0','slot1','chamber','heat'})do
+  for _,role in ipairs({'options','fire_mode','rpm','selected','guide','carry','owner','floor','rounds','slot0','slot1','chamber','heat','underbarrel','magazines','spare','reload_stage'})do
    local r=DATA.roles[role]
    if t.roles:find(r.letter,1,true)and not found[norm(r.id)]then good=false end
   end
@@ -50,7 +53,7 @@ function M.new(E,log)
   if t.roles:find(r.letter,1,true)then return call(G.game_object_field,s,id,r.name)end
  end
  local binding=require('mods/integrated_hud/mdl_gamesession/weapon_network_binding').new(E,DATA,valid,read_field,log)
- function R.reset()verified={};rpm_seen={};next_read=0;last_id,last_session,last_result=nil,nil,nil;binding.reset()end
+ function R.reset()ammo_max={};verified={};rpm_seen={};next_read=0;last_id,last_session,last_result=nil,nil,nil;binding.reset()end
  function R.refresh()next_read=0;binding.refresh()end
  function R.read(entity,now,me)
   local s=call(N.game_session)
@@ -76,7 +79,7 @@ function M.new(E,log)
   end
   if t.id=='9c06f074'and finite(selected)then mode=({[0]='FLECHETTE',[1]='STUN'})[selected]end
   local main=finite(fm)and math.floor(fm/8)%2==0
-  if UB[t.id]then mode=UB[t.id][finite(fm)and not main and 2 or 1]end
+  if UB[t.id]and finite(fm)then mode=UB[t.id][main and 1 or 2]end
   if t.id=='cfaa9ddc'and main then mode=({[1]='AUTO',[4]='VOLLEY',[7]='TOTAL'})[fm%8]end
   -- Epoch also uses mode 6 internally, but has no selectable safety mode.
   local safety=t.id=='26acc614'and main and({[5]='SAFE',[6]='UNSAFE'})[fm%8]or nil
@@ -99,7 +102,37 @@ function M.new(E,log)
     setting=tostring(math.floor(value+.5))..' RPM'
    end
   end
-  last_result={hash=t.id,network_id=id,mode=mode,rpm=setting,safety=safety,backpack_fed=DATA.packres[t.id]==true}
+  local active=CHILD[t.id]and finite(fm)and not main or false
+  local ammo=nil
+  if active then
+   local child=read_field(s,id,t,'underbarrel');local ct=by_hash[CHILD[t.id]]
+   if finite(child)and child>=0 and child<32767 and child==math.floor(child)and child~=id
+    and ct and valid(ct)and call(G.game_object_exists,s,child)==true
+    and call(G.game_object_is_type,s,child,ct.name)==true then
+    local n=read_field(s,child,ct,'rounds')
+    local slotted=not finite(n)
+    if slotted then
+     local sel=read_field(s,child,ct,'selected')
+     n=read_field(s,child,ct,sel==1 and'slot1'or'slot0')
+    end
+    if finite(n)and n>=0 then
+     local chamber=read_field(s,child,ct,'chamber')
+     local loaded=n+(chamber==false and 1 or 0)
+     -- Slot-based single-shot weapons keep their loaded round in the chamber.
+     local key=tostring(id)..'/'..tostring(child)
+     local capacity=math.max(1,DATA.mag[ct.id]or 0,ammo_max[key]or 0,slotted and loaded or n)
+     ammo_max[key]=capacity
+     local reserve=read_field(s,child,ct,'magazines')
+     if not finite(reserve)then reserve=read_field(s,child,ct,'spare')end
+     local reload=read_field(s,child,ct,'reload_stage')
+     ammo={entity=entity,ammo_type='magazine',rounds=loaded,capacity=capacity,
+      mags=finite(reserve)and reserve>=0 and reserve or nil,
+      reload={active=finite(reload)and reload~=0},network_id=child}
+    end
+   end
+   setting=nil -- Main rifle RPM is not the underbarrel's firing setting.
+  end
+  last_result={hash=t.id,network_id=id,mode=mode,rpm=setting,safety=safety,backpack_fed=DATA.packres[t.id]==true,underbarrel_active=active,underbarrel_ammo=ammo}
   return last_result
  end
  return R

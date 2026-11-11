@@ -5,6 +5,7 @@ do
  local H=style.canvas[2];local outline={}
  for i,p in ipairs(style.outline)do outline[i]={p[1],H-p[2]}end
  local snapshot=nil
+ M.integrated_in_mech=function()return snapshot~=nil end
  local reader_context={}
  local function context(session,avatar,world,owned_ids)
   local c=reader_context

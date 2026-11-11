@@ -1,5 +1,6 @@
 -- MDL canvas stays visible in equipment screens and cursor-based menus.
 local M={}
+local i18n=require('mods/integrated_hud/mdl_gamesession/localization')
 local function call(f,...)if type(f)=='function'then local ok,v=pcall(f,...);if ok then return v end end end
 local utf8=require('mods/integrated_hud/mdl_gamesession/utf8_text')
 local boosters=require('mods/integrated_hud/mdl_gamesession/booster_data')
@@ -17,9 +18,9 @@ function M.new(E,log)
  function R.set_scale(v)scale=type(v)=='number'and v==v and math.max(.5,math.min(1.5,v))or 1 end
  local function percent(v,d)return type(v)=='number'and v==v and math.max(0,math.min(100,v))or d end
  function R.set_position(x,y)px,py=percent(x,0),percent(y,50)end
- local status={['SESSION ONLY']='SESSION LIST: SELF',['WAIT PLAYER SCHEMA']='WAITING FOR SCHEMA',['WAIT SQUAD']='WAITING FOR SQUAD',
-  ['CONFIRMING PLAYER IDS']='CONFIRMING IDS',['AMBIGUOUS PLAYER IDS']='AMBIGUOUS IDS',
-  ['HUB REQUIRED']='ENABLE HD2 DATA HUB',['WAIT HUB']='WAITING FOR HUB',['WAIT MISSION']='WAITING FOR MISSION'}
+ local status={['SESSION ONLY']='panel.self_only',['WAIT PLAYER SCHEMA']='panel.schema',['WAIT SQUAD']='panel.squad_wait',
+  ['CONFIRMING PLAYER IDS']='panel.confirming',['AMBIGUOUS PLAYER IDS']='panel.ambiguous',
+  ['HUB REQUIRED']='panel.hub_required',['WAIT HUB']='panel.hub_wait',['WAIT MISSION']='panel.mission_wait'}
  local function measure(s,size)return c.measure(s,size)or 0 end
  local function prefix(s,width,size)
   local chars=utf8.split(s)or{};local out={}
@@ -52,7 +53,7 @@ function M.new(E,log)
    table.sort(rows,function(a,b)return a.slot<b.slot end)
    v={state=#rows>0 and'READY'or'SESSION ONLY',rows=rows}
   end
-  local parts={screen.w,screen.h,v.state,v.source or'',scale,px,py,tostring(show_latency),tostring(show_boosters)}
+  local parts={i18n.code(),screen.w,screen.h,v.state,v.source or'',scale,px,py,tostring(show_latency),tostring(show_boosters)}
   for _,r in ipairs(v.rows)do
    local p=snapshot and snapshot.by_peer[boosters.peer(r.peer)]
    parts[#parts+1]=r.peer..':'..(r.label or r.peer)..':'..tostring(r.ms)..':'..icon.key(p and not p.is_local and p or nil)
@@ -62,10 +63,10 @@ function M.new(E,log)
    c.clear();key=k
    do
     local lines=v.state=='READY'and #v.rows or 1
-    local title=show_latency and(v.source=='CONNECTIONS'and'CONNECTION RTT'or'LOCAL RTT')or'SQUAD'
-    local title_width=math.max(measure('LOCAL RTT',16*scale),measure(title,16*scale))
+    local title=i18n.t(show_latency and(v.source=='CONNECTIONS'and'panel.connection_rtt'or'panel.local_rtt')or'panel.squad')
+    local title_width=math.max(measure(i18n.t('panel.local_rtt'),16*scale),measure(title,16*scale))
     local latency_gap=(show_boosters and 14 or 8)*scale
-    local message=status[v.state]or'WAITING FOR IDS'
+    local message=i18n.t(status[v.state]or'panel.ids_wait')
     local width=title_width
     if v.state=='READY'then
      if show_boosters then width=title_width+10*scale end

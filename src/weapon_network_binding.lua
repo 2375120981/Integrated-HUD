@@ -3,8 +3,9 @@
 local M={}
 local SLOT={primary=1,secondary=2,support=3}
 -- Both Railgun and Epoch use the support slot; override the learned seed.
-local OVERRIDE={cfaa9ddc=1,['9c06f074']=1,cd0e4b4a=1,['3244dc49']=1,['656d507b']=3,
+local OVERRIDE={cfaa9ddc=1,['9c06f074']=1,cd0e4b4a=1,['3244dc49']=1,['8fcdd35c']=1,['656d507b']=3,
  ['26acc614']=3,['314a1bf5']=3}
+local UNDERBARREL={['3244dc49']='16425925',['8fcdd35c']='da0f356e',cd0e4b4a='2166c7a1'}
 local function call(f,...)if type(f)=='function'then local ok,a=pcall(f,...);if ok then return a end end end
 local function finite(v)return type(v)=='number'and v==v and math.abs(v)<1e9 end
 local function peer(v)return type(v)=='string'and v:lower():gsub('^0+','')or nil end
@@ -18,7 +19,8 @@ end
 function M.new(E,data,valid,field,log)
  local G,N=E.GameSession or{},E.Network or{}
  local R={};local objects={};local ids={};local refresh=0;local hub_id=nil;local last_log=nil;local bound=nil
- local by_slot={{},{},{}}
+ local by_slot={{},{},{}};local by_hash={}
+ for _,t in ipairs(data.types)do by_hash[t.id]=t end
  for _,t in ipairs(data.types)do
   local slot=OVERRIDE[t.id]or data.slots[t.id]
   if slot and by_slot[slot]then by_slot[slot][#by_slot[slot]+1]=t end
@@ -78,24 +80,35 @@ function M.new(E,data,valid,field,log)
     local carry=field(s,id,t,'carry');local owner=field(s,id,t,'owner')
     local floor=field(s,id,t,'floor')
     if finite(carry)and carry%4==0 and peer(owner)==peer(local_peer)and(not finite(floor)or floor==32767)then
-     -- Compare current contents as corroboration, never the mode we want to show.
-     local same=false
-     if t.direct_feed and connected_held(w,me)then
-      -- No magazine count exists to compare. Still require one unambiguous
-      -- local carried direct-feed type in the authoritative support slot.
-      same=true
-     elseif w.ammo_type=='heat'and t.heat then
-      local h=field(s,id,t,'heat');local hv=type(w.heat)=='table'and w.heat.value
-      same=finite(h)and finite(hv)and math.abs(h-hv)<=16
-     elseif w.ammo_type~='heat'and not t.heat and finite(w.rounds)then
-      local n=field(s,id,t,'rounds')
-      if not finite(n)then
-       local selected=field(s,id,t,'selected')
-       n=field(s,id,t,selected==1 and'slot1'or'slot0')
+     -- Compare Hub ammo with the rifle, or its explicitly linked active
+     -- underbarrel. A child object alone never identifies a held weapon.
+     local function ammo_matches(object,kind)
+      if w.ammo_type=='heat'and kind.heat then
+       local h=field(s,object,kind,'heat');local hv=type(w.heat)=='table'and w.heat.value
+       return finite(h)and finite(hv)and math.abs(h-hv)<=16
+      elseif w.ammo_type~='heat'and not kind.heat and finite(w.rounds)then
+       local n=field(s,object,kind,'rounds')
+       if not finite(n)then
+        local selected=field(s,object,kind,'selected')
+        n=field(s,object,kind,selected==1 and'slot1'or'slot0')
+       end
+       if finite(n)then
+        if field(s,object,kind,'chamber')==false then n=n+1 end
+        return n==w.rounds
+       end
       end
-      if finite(n)then
-       if field(s,id,t,'chamber')==false then n=n+1 end
-       same=n==w.rounds
+      return false
+     end
+     local same=t.direct_feed and connected_held(w,me)or ammo_matches(id,t)
+     if not same and UNDERBARREL[t.id]then
+      local fm=field(s,id,t,'fire_mode')
+      if finite(fm)and math.floor(fm/8)%2==1 then
+       local child=field(s,id,t,'underbarrel');local ct=by_hash[UNDERBARREL[t.id]]
+       if finite(child)and child>=0 and child<32767 and child==math.floor(child)and child~=id
+        and ct and valid(ct)and call(G.game_object_exists,s,child)==true
+        and call(G.game_object_is_type,s,child,ct.name)==true then
+        same=ammo_matches(child,ct)
+       end
       end
      end
      if same then matches[#matches+1]={id=id,t=t}end

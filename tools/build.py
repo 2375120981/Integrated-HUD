@@ -8,6 +8,7 @@ import struct
 import zipfile
 from archive import archive, resource_hash, lua_value, PREFIX
 from geometry import triangulate_polygon
+from locales import compile_locales
 
 ROOT = Path(__file__).resolve().parents[1]
 BASE = 'mods/integrated_hud/mdl_gamesession/'
@@ -59,7 +60,7 @@ end
     # MDL owns dispatch. Do not install DRIVER globals, extension registries,
     # global hooks, or singleton flags; each enable receives a fresh factory.
     core = core[:core.index("local old=rawget(_G,'update');")]
-    core += '''return {installed=true,update=update,set_views=M.integrated_set_views,shutdown=function()
+    core += '''return {installed=true,update=update,set_views=M.integrated_set_views,weapon_blocked=M.integrated_weapon_blocked,shutdown=function()
  diagnostic_shutdown=true;detach_diagnostics('shutdown')
  surface_reset(call(App.worlds)or{});full_reset()
 end}
@@ -89,7 +90,7 @@ def weapon_detail_data():
     return 'return ' + lua_value({'types': types, 'roles': roles,
         'rpmadj': dict(seed['rpmadj'].items()), 'rpmbase': dict(seed['rpmbase'].items()),
         'options1': dict(seed['options1'].items()), 'slots': dict(seed['slot'].items()),
-        'packres': dict(seed['packres'].items())})
+        'mag': dict(seed['mag'].items()), 'packres': dict(seed['packres'].items())})
 
 
 def pe(path):
@@ -117,6 +118,8 @@ def main():
     sources = {
         entry: read('src/mdl_gamesession.lua'),
         BASE + 'hud_options': read('src/hud_options.lua'),
+        BASE + 'localization': read('src/localization.lua'),
+        BASE + 'locale_data': compile_locales(ROOT),
         BASE + 'reader': read('src/hub_weapon_reader.lua'),
         BASE + 'weapon_details': read('src/weapon_details.lua'),
         BASE + 'weapon_network_binding': read('src/weapon_network_binding.lua'),

@@ -31,7 +31,7 @@ end
 local function log(s)
  pcall(function()
   local base=os.getenv('APPDATA');if not base then return end
-  local f=io.open(base..'/Arrowhead/Helldivers2/IntegratedHUD-MDL-0.8.21.log','a')
+  local f=io.open(base..'/Arrowhead/Helldivers2/IntegratedHUD-MDL-0.9.0.log','a')
   if f then f:write(string.format('%.3f %s\n',clock,s));f:close()end
  end)
 end
@@ -52,6 +52,7 @@ local function frame(dt)
  end
  if not reader then return end
  local v=reader.read(clock)
+ if vehicles and call(vehicles.weapon_blocked)==true then if weapon_view then weapon_view.hide()end;return end
  if E.Window and call(E.Window.show_cursor)==true then if weapon_view then weapon_view.hide()end;return end
  local key=table.concat({v.state,tostring(v.entity),v.kind or'',tostring(v.rounds),tostring(v.mags),tostring(v.heat_percent),v.mode or'',v.rpm or''},'/')
  if key~=last_log and clock>=next_log then last_log=key;next_log=clock+.5;log('WEAPON '..key)end
@@ -95,7 +96,7 @@ local function sync_settings(ctx)
   end
  elseif reader or weapon_view then stop_weapon()end
  local frv,tank,mech=settings.frv_hud~=false,settings.tank_hud~=false,settings.mech_hud~=false
- if frv or tank or mech then
+ if frv or tank or mech or reader then
   if not vehicles then
    vehicles=require('mods/integrated_hud/driver_reference/driver_core')()
    assert(vehicles and type(vehicles.update)=='function','vehicle module unavailable')
@@ -112,7 +113,7 @@ local function stop()
  if network_hud then call(network_hud.shutdown);network_hud=nil end
 end
 definition={
- name='集成HUD',version='0.8.21',author='2375120981',
+ name='集成HUD',version='0.9.0',author='2375120981',
  description='需要 MDL dev43 与 HD2 Data Hub 0.6.0；MDL GUI 绘制全部 HUD，Hub 读取手持武器及弹药。',
  options={},
  on_enable=function(ctx)
@@ -130,7 +131,7 @@ definition={
   log('START MDL dev43 GUI; Hub 0.6 weapon identity/ammo; GameSession vehicle and weapon settings')
  end,
  on_setting=function(ctx,key,value)
-  if key=='booster_display'or key=='booster_hud'or key=='weapon_hud'or key=='frv_hud'or key=='tank_hud'or key=='mech_hud'or key=='weapon_scale'or key=='ammo_number_scale'or key=='network_hud'or key=='network_scale'or key=='network_x'or key=='network_y'then
+  if key=='language'or key=='booster_display'or key=='booster_hud'or key=='weapon_hud'or key=='frv_hud'or key=='tank_hud'or key=='mech_hud'or key=='weapon_scale'or key=='ammo_number_scale'or key=='network_hud'or key=='network_scale'or key=='network_x'or key=='network_y'then
    sync_settings(ctx);log('SETTING '..key..'='..tostring(value))
   end
  end,
