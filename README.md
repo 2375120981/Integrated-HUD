@@ -1,5 +1,44 @@
 # 集成HUD（Integrated HUD）
 
+## 翻译贡献 / Contributing translations
+
+欢迎为模组设置与玩家面板提交翻译。**完整模板：[locales/en.json](locales/en.json)**；简体中文示例：[locales/zh-CN.json](locales/zh-CN.json)。
+
+### 制作翻译文件
+
+1. 复制完整的 `locales/en.json`，按目标语言代码命名，例如日语 `locales/ja.json`、德语 `locales/de.json`。
+2. 将 `name` 改为该语言的本地名称，例如 `日本語` 或 `Deutsch`。
+3. 仅翻译 `strings` 中每个键右侧的文字，保留键名、JSON 结构和数值范围等含义。文件使用 **UTF-8（无 BOM）** 保存。
+4. 保持合法 JSON：使用英文双引号，不添加注释或末尾逗号；文字中的双引号写为 `\"`，换行写为 `\n`。不要提交重复键、未知键、空字符串或代码。暂未翻译的键可以省略，运行时会回退英文。
+
+结构示例（仅作说明，请从完整模板复制）：
+
+```json
+{
+  "name": "日本語",
+  "strings": {
+    "options.weapon_hud.label": "武器 HUD"
+  }
+}
+```
+
+### 提交与合并
+
+1. Fork 本仓库，在自己的分支中添加 `locales/<语言代码>.json`，然后向本仓库提交 Pull Request。
+2. 在 PR 中说明语言、语言代码以及是否已在游戏内检查；若已测试，可附设置界面或面板截图。
+3. 维护者审核翻译、运行构建校验，并确认 MDL 返回的语言标识能匹配文件名；必要时在 `src/localization.lua` 中补充语言别名。
+4. 检查游戏内字体、文本长度及布局后合并 PR，重新构建并发布模组。**仅合并 JSON 文件不会更新已经发布的 ZIP，也不能通过向已安装模组旁放置 JSON 来加载翻译。**
+
+当前语言设置仅有“跟随 MDL”和“简体中文”，默认跟随 MDL；新增语言通过跟随模式匹配，未收录语言回退英文。翻译范围为运行时设置菜单、选项说明和玩家面板文字；独立狙击准星工具、管理器安装选项及武器弹种缩写暂不包含在此翻译接口中。更多说明见 [locales/README.md](locales/README.md)。
+
+### English guide
+
+Copy the **complete [English template](locales/en.json)** to `locales/<language-code>.json`, such as `ja.json` or `de.json`. Set `name` to the language's native name and translate only the values in `strings`; keep all keys and the JSON structure unchanged. Save as **UTF-8 without a BOM**. Use valid JSON with no comments, trailing commas, duplicate or unknown keys, empty strings, or executable code. Escape quotes as `\"` and line breaks as `\n`. Missing keys fall back to English.
+
+Fork this repository, add the translation on your branch, and submit a pull request. Include the language name/code and any in-game test results or screenshots. The maintainer will validate the file during the build, check MDL language-code matching (adding aliases if needed), and review font support and layout before merging and publishing a rebuilt package. Adding a translation to the repository does not update an existing release ZIP; placing a JSON file beside an installed mod does not load it.
+
+The language setting currently offers **Follow MDL** (default) and **Simplified Chinese**. Additional translations are selected through Follow MDL; unsupported languages fall back to English. This interface covers runtime settings and player-panel text, not the standalone sniper tool, mod-manager installation options, or weapon ammunition abbreviations.
+
 当前版本：**0.9.0**。武器身份、弹药、热量和换弹状态改用 HD2 Data Hub；全部 HUD、数字、文字及启动提示改用 MDL3.gui 和游戏菜单字体。载具数据及武器功能模式／射速保留经过约束的 GameSession 补充读取。保留独立开关、缩放、延迟面板位置及原生狙击准星一次性任务。内侧蓄力圆弧已通过用户实机验证，整合包已通过基本构建检查。血条旁的队友强化仍有错位反馈，列表中的玩家／强化对应正常。
 
 ## 已知问题
