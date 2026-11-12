@@ -29,7 +29,7 @@
 3. 维护者审核翻译、运行构建校验，并确认 MDL 返回的语言标识能匹配文件名；必要时在 `src/localization.lua` 中补充语言别名。
 4. 检查游戏内字体、文本长度及布局后合并 PR，重新构建并发布模组。**仅合并 JSON 文件不会更新已经发布的 ZIP，也不能通过向已安装模组旁放置 JSON 来加载翻译。**
 
-当前语言设置提供“跟随 MDL”“简体中文”和“English”，默认跟随 MDL；新增语言通过跟随模式匹配，未收录语言回退英文。翻译范围为运行时设置菜单、选项说明和玩家面板文字；独立狙击准星工具、管理器安装选项及武器弹种缩写暂不包含在此翻译接口中。更多说明见 [locales/README.md](locales/README.md)。
+当前语言设置提供“跟随 MDL”、“简体中文”、“English”和“Русский”，可通过点击依次循环切换，默认跟随 MDL。自动模式下，无法读取 MDL 语言或对应翻译不存在时回退到英文。翻译范围为运行时设置菜单、选项说明和玩家面板文字；独立狙击准星工具、管理器安装选项及武器弹种缩写暂不包含在此翻译接口中。更多说明见 [locales/README.md](locales/README.md)。
 
 ### English guide
 
@@ -37,7 +37,7 @@ Copy the **complete [English template](locales/en.json)** to `locales/<language-
 
 Fork this repository, add the translation on your branch, and submit a pull request. Include the language name/code and any in-game test results or screenshots. The maintainer will validate the file during the build, check MDL language-code matching (adding aliases if needed), and review font support and layout before merging and publishing a rebuilt package. Adding a translation to the repository does not update an existing release ZIP; placing a JSON file beside an installed mod does not load it.
 
-The language setting currently offers **Follow MDL** (default), **Simplified Chinese**, and **English**. Additional translations are selected through Follow MDL; unsupported languages fall back to English. This interface covers runtime settings and player-panel text, not the standalone sniper tool, mod-manager installation options, or weapon ammunition abbreviations.
+The language setting currently cycles through **Follow MDL** (default), **Simplified Chinese**, **English**, and **Russian**. When set to Follow MDL, unreadable or unsupported MDL languages fall back to English (any future community translations added to locales/ will also be picked up automatically in this mode). This interface covers runtime settings and player-panel text, not the standalone sniper tool, mod-manager installation options, or weapon ammunition abbreviations.
 
 当前版本：**0.9.2**。武器身份、弹药、热量和换弹状态改用 HD2 Data Hub；全部 HUD、数字和文字改用 MDL3.gui 和游戏菜单字体。载具数据及武器功能模式／射速保留经过约束的 GameSession 补充读取。保留独立开关、缩放、延迟面板位置。内侧蓄力圆弧已通过用户实机验证，整合包已通过基本构建检查。血条旁的队友强化仍有错位反馈，列表中的玩家／强化对应正常。
 
@@ -240,4 +240,4 @@ Based on **NarrowHUD 2.0.0 by luka189**：保留武器类型／字段、功能�
 0.9.1：移除主包内的狙击枪准星启动任务及独立工具，管理器安装选项清空，HUD 补丁改为包根目录直接部署。准星相关开发文件保存在本地开发归档；HUD 运行时设置继续保留。构建记录更新为当前本地游戏版本，游戏更新后的实机兼容性待验证。
 
 
-0.9.2：保留内置英文／简体中文，新增 English 手动语言选项（原有选项索引不变），默认跟随 MDL，未知语言回退英文。语言解析加入异常隔离与重入保护，避免宿主语言配置异常或设置回调重入中断面板更新。日志中的 MDL_GUI_FONT_UNAVAILABLE 表示 MDL 字体服务不可用，不能据此认定为语言切换故障。
+0.9.2：保留内置英文／简体中文，新增 English 和 Русский手动语言选项（原有选项索引不变），默认跟随 MDL，未知语言回退英文。语言解析加入异常隔离与重入保护，避免宿主语言配置异常或设置回调重入中断面板更新。日志中的 MDL_GUI_FONT_UNAVAILABLE 表示 MDL 字体服务不可用，不能据此认定为语言切换故障。

@@ -501,10 +501,10 @@ local n=0;for id,spec in pairs(specs)do
  n=n+1;assert(spec.mod_id==B..'main'and type(spec.mod)=='function'and spec.mod()=='Integrated HUD','public settings split into different groups')
 end
 assert(n==13,'incomplete public options menu')
--- Dynamic text follows MDL by default; forcing Chinese does not change values.
+-- Dynamic text follows MDL by default; forcing a language does not change values.
 local loc=env.require(B..'localization')
 local language_spec=specs['integrated_hud.language']
-assert(language_spec.default==1 and #language_spec.choices==3 and language_spec.choices[1]()=='Follow MDL','language defaults/options differ from request')
+assert(language_spec.default==1 and #language_spec.choices==4 and language_spec.choices[1]()=='Follow MDL','language defaults/options differ from request')
 env.MDL={i18n={code='en'}}
 assert(loc.code()=='en'and specs['integrated_hud.weapon_hud'].label()=='Weapon HUD','English MDL not followed')
 local label_callback=specs['integrated_hud.weapon_hud'].label
@@ -513,6 +513,13 @@ env.MDL.i18n.code='zh_hans'
 assert(loc.code()=='zh-CN'and label_callback()=='武器 HUD'and boost_choices[2]()=='仅列表','MDL language change did not refresh dynamic strings')
 menu.set('integrated_hud.language',2);env.MDL.i18n.code='en'
 assert(loc.code()=='zh-CN'and label_callback()=='武器 HUD','forced Chinese followed English MDL')
+menu.set('integrated_hud.language',3);env.MDL.i18n.code='zh-CN'
+assert(loc.code()=='en'and label_callback()=='Weapon HUD','forced English followed Chinese MDL')
+menu.set('integrated_hud.language',4);env.MDL.i18n.code='en'
+assert(loc.code()=='ru-RU'and label_callback()=='HUD оружия','forced Russian followed English MDL')
+env.MDL.i18n.code='ru-RU'
+assert(loc.code()=='ru-RU'and label_callback()=='HUD оружия'and boost_choices[2]()=='Только список игроков','MDL language change did not refresh dynamic strings')
+menu.set('integrated_hud.language',2)
 local catalogs=env.require(B..'locale_data');local saved_label=catalogs['zh-CN'].strings['options.tank_hud.label']
 catalogs['zh-CN'].strings['options.tank_hud.label']=nil
 assert(specs['integrated_hud.tank_hud'].label()=='Tank HUD','missing translation did not fall back to English')
@@ -523,20 +530,21 @@ menu.set('integrated_hud.language',1);env.MDL.i18n.code='fr'
 assert(loc.code()=='en'and label_callback()=='Weapon HUD','untranslated MDL language did not fall back')
 env.MDL.i18n.code='auto';env.MDL3.ui={language='zh-CN'}
 assert(loc.code()=='zh-CN','MDL3 UI language fallback missing')
-menu.set('integrated_hud.language',3);env.MDL.i18n.code='zh-CN'
-assert(loc.code()=='en'and label_callback()=='Weapon HUD','forced English followed Chinese MDL')
-menu.set('integrated_hud.language',1)
+env.MDL3.ui=nil;env.MDL.i18n.code='en'
+assert(settings.read(migrated).booster_display=='仅列表','translated choice changed internal booster mode')
+menu.set('integrated_hud.language',1);env.MDL.i18n.code='ru-RU'
+assert(loc.code()=='ru-RU','Russian language not selected before host failure')
 env.MDL=setmetatable({},{__index=function()error('temporary host language failure')end})
 env.MDL3.ui=nil
-assert(loc.code()=='en'and label_callback()=='Weapon HUD','host language exception escaped to HUD')
+assert(loc.code()=='ru-RU'and label_callback()=='HUD оружия','last valid language was not preserved after host failure')
 env.MDL=nil
-assert(loc.code()=='en','missing MDL language did not fall back')
--- Re-entrant settings providers must not overflow translated label callbacks.
+assert(loc.code()=='ru-RU','missing MDL language did not preserve last valid language')
 loc.set_source(function()loc.t('mod.title');return 'en'end)
 assert(loc.code()=='en','recursive menu language lookup was not contained')
+loc.set_source(nil)
 settings.register(migrated)
 env.MDL={i18n={code='en'}}
-assert(settings.read(migrated).booster_display=='仅列表','translated choice changed internal booster mode')
+assert(loc.code()=='en'and settings.read(migrated).booster_display=='仅列表','language source was not restored or booster mode changed')
 
 local values=settings.read(migrated)
 assert(values.weapon_hud==false and values.network_hud==false and values.booster_display=='仅列表','legacy false/choice not migrated')
@@ -558,6 +566,6 @@ assert(panel_live and not shown_latency and shown_list and not blood_live,'publi
 menu.set('integrated_hud.booster_hud',false);mod.on_update(migrated,0.016)
 assert(not panel_live and not blood_live,'public master toggle ignored')
 mod.on_disable()
-return {localization_three_choices_safe_fallback_and_mdl_default=true,belt_grenade_three_rpm_settings_and_ambiguity=true,hub_captured_three_connected_weapons_false_feed_flag=true,hub_unsupported_input_diagnostics_and_pack_lease=true,hub_direct_backpack_feed_and_empty_count=true,mdl_unified_options_migration_and_live_poll=true,weapon_independent_inner_charge_without_numbers=true,weapon_ship_gate_and_scene_transition=true,booster_three_modes_and_panel_visibility=true,squad_boosters_incremental_native_index_and_cache=true,network_boosters_peer_join_no_native_scan=true,squad_boosters_peer_join_and_self=true,squad_boosters_native_images_and_empty_hex=true,squad_boosters_unknown_and_cleanup=true,squad_boosters_upper_left_anchor=true,hub_exact_weapon_no_firing_needed=true,hub_network_ids_separated=true,hub_backpack_fallback_no_double_count=true,hub_backpack_lease_warm_and_pickup_refresh=true,vehicle_hp_measured_center_and_75pct_size=true,hub_heat_magazine_switch=true,hub_backpack_reserve_passthrough=true,
+return {localization_dynamic_callbacks_forced_languages_and_mdl_default=true,belt_grenade_three_rpm_settings_and_ambiguity=true,hub_captured_three_connected_weapons_false_feed_flag=true,hub_unsupported_input_diagnostics_and_pack_lease=true,hub_direct_backpack_feed_and_empty_count=true,mdl_unified_options_migration_and_live_poll=true,weapon_independent_inner_charge_without_numbers=true,weapon_ship_gate_and_scene_transition=true,booster_three_modes_and_panel_visibility=true,squad_boosters_incremental_native_index_and_cache=true,network_boosters_peer_join_no_native_scan=true,squad_boosters_peer_join_and_self=true,squad_boosters_native_images_and_empty_hex=true,squad_boosters_unknown_and_cleanup=true,squad_boosters_upper_left_anchor=true,hub_exact_weapon_no_firing_needed=true,hub_network_ids_separated=true,hub_backpack_fallback_no_double_count=true,hub_backpack_lease_warm_and_pickup_refresh=true,vehicle_hp_measured_center_and_75pct_size=true,hub_heat_magazine_switch=true,hub_backpack_reserve_passthrough=true,
  hub_reload_hidden=true,hub_respawn_and_disable_clear=true,mdl_native_text_and_images=true,mdl_weapon_fixed_anchor_scale=true,
  mdl_vehicle_adapter=true,mdl_ping_unicode_and_position=true,mdl_lifecycle_cleanup=true}
