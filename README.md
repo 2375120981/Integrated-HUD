@@ -39,7 +39,7 @@ Fork this repository, add the translation on your branch, and submit a pull requ
 
 The language setting currently offers **Follow MDL** (default), **Simplified Chinese**, and **English**. Additional translations are selected through Follow MDL; unsupported languages fall back to English. This interface covers runtime settings and player-panel text, not the standalone sniper tool, mod-manager installation options, or weapon ammunition abbreviations.
 
-当前版本：**0.9.2**。武器身份、弹药、热量和换弹状态改用 HD2 Data Hub；全部 HUD、数字和文字改用 MDL3.gui 和游戏菜单字体。载具数据及武器功能模式／射速保留经过约束的 GameSession 补充读取。保留独立开关、缩放、延迟面板位置。内侧蓄力圆弧已通过用户实机验证，整合包已通过基本构建检查。血条旁的队友强化仍有错位反馈，列表中的玩家／强化对应正常。
+当前版本：**0.9.3**。武器身份、弹药、热量和换弹状态改用 HD2 Data Hub；全部 HUD、数字和文字改用 MDL3.gui 和游戏菜单字体。载具数据及武器功能模式／射速保留经过约束的 GameSession 补充读取。保留独立开关、缩放、延迟面板位置。内侧蓄力圆弧已通过用户实机验证，整合包已通过基本构建检查。血条旁的队友强化仍有错位反馈，列表中的玩家／强化对应正常。
 
 ## 已知问题
 
@@ -49,8 +49,8 @@ The language setting currently offers **Follow MDL** (default), **Simplified Chi
 
 - **小队强化图标**：调用 Hub `D.buffs()`，按 peer 与 `D.players(false)` 的成员逐人关联，包含自己；显示在彩色玩家标签左上方，避开麦克风。使用从当前游戏原生矢量资源转换的 20 种图标；确认未携带强化时绘制空心六边形，未取得成员数据时留空，未知强化显示带问号的轮廓。提供独立 MDL 开关，换场景或停用时清理。
 
-- **武器 HUD**：准星右侧外侧圆弧显示弹匣余量或热量；弹匣武器下方显示“弹匣内余量 / 备用弹匣量”，热量武器显示百分比，换弹时隐藏武器 HUD。
-- **蓄力进度**：蓄力时在弹药／热量圆弧内侧显示独立青色圆弧，不显示蓄力数字，不改变外圈和原有弹药／热量数字。直接读取 Hub 的 `weapon.charge` 或 `heat.charge`，热量型另检查 `heat.charging`；取消或发射后隐藏内圈，换弹时两圈一起隐藏。加速步枪、磁轨炮、纪元、类星体与新星已参与实机验证；磁轨炮 0.7 平台保留真实比例，不将其强制归一为满圈。两圈随武器 HUD 整体缩放。
+- **武器 HUD**：准星右侧外侧圆弧显示弹匣余量或热量；弹匣武器下方显示“弹匣内余量 / 备用弹匣量”，热量武器显示百分比，换弹期间继续显示当前读取到的弹药／热量数据，不推算换弹进度。
+- **蓄力进度**：蓄力时在弹药／热量圆弧内侧显示独立青色圆弧，不显示蓄力数字，不改变外圈和原有弹药／热量数字。直接读取 Hub 的 `weapon.charge` 或 `heat.charge`，热量型另检查 `heat.charging`；取消或发射后隐藏内圈；换弹不再强制隐藏，蓄力内圈仍由实际蓄力数据决定。加速步枪、磁轨炮、纪元、类星体与新星已参与实机验证；磁轨炮 0.7 平台保留真实比例，不将其强制归一为满圈。两圈随武器 HUD 整体缩放。
 - **下挂弹种**：幺二、仲裁者和带下挂喷火器的武器在圆弧右侧显示当前选择的主枪／下挂弹种；通过主枪指向下挂对象的字段校验，不依赖开火或手部姿态。下挂启用时从关联对象读取装填弹量、备弹与换弹状态，切回主枪恢复 Hub 主枪数据；下挂数据暂不可用时不沿用主枪弹量。
 - **模式与射速**：圆弧右侧显示解析得到的功能模式及射速设置；内置模式采用随包图标，其余已解析模式回退为文字。VG-70 额外显示自动／齐射／全射图标；其他武器不显示普通半自动／全自动，没有有效数据时不显示占位。
 - **背包供弹**：优先使用 Hub 的备弹结果；供弹武器若缺少 `mags_backpack` 合并标记，使用本地 `backpack.count`，不足时查询 `D.backpacks()` 中身份对应的本地弹药背包。已有合并标记时不重复加算，不额外绘制背包面板。手持支援武器时提前维持背包接口租约，背包实体或计数可用状态变化时立即触发补充读取；同一角色生命周期内保留已确认的武器供弹类型，不因模式关联暂时缺失而等待重试。计数本身不缓存，仍以 Hub 当前数据为准；Hub 的采样与发布延迟不能由本模组消除。
@@ -61,7 +61,7 @@ The language setting currently offers **Follow MDL** (default), **Simplified Chi
 - **弹药数字大小**：独立滑动条将弹匣／备弹数字调整为 50%–150%，默认 100%，步进 5%；数字中心位置固定，与武器 HUD 整体缩放叠加。热量百分比、模式／射速、圆弧与载具 HUD 不受此项影响。
 - **字体与启停**：全部数字和文字采用 MDL 的游戏菜单字体；支持 MDL 实时启停，由画布管理场景变化及停用清理。文字需要 MDL 原生界面服务正常运行。
 
-每帧使用 `HD2Data.player_ammo()` 的当前 `weapon.entity`，根据 `ammo_type` 切换弹匣／热量样式。弹量、膛内弹处理、背包备弹及热量均以 Hub 返回值为准，不再使用姿态、滚轮、开火活动或学习缓存挑选手持武器。换弹 `reload.active=true` 时隐藏；未读到手持武器或有效弹药时不沿用另一把武器的数据。圆弧不显示换弹进度。
+每帧使用 `HD2Data.player_ammo()` 的当前 `weapon.entity`，根据 `ammo_type` 切换弹匣／热量样式。弹量、膛内弹处理、背包备弹及热量均以 Hub 返回值为准，不再使用姿态、滚轮、开火活动或学习缓存挑选手持武器。换弹 `reload.active=true` 时继续显示当前有效数据；未读到手持武器或有效弹药时不沿用另一把武器的数据。圆弧不显示换弹进度。
 
 Hub 尚未提供模式和射速接口，也未提供手持实体 ID 到 GameSession 网络对象 ID 的直接转换。0.8.0 将两者混用，导致补充读取未命中；0.8.1 将它们分开：根据 Hub 确定的武器槽位，在本地拥有的网络对象中，校验类型／字段声明、携带状态、所有者、地面拾取引用和弹量／热量。只在完整检查后存在唯一候选时关联网络对象；多个候选不猜选。此关联仅提供模式、射速和供弹类型标记，不能覆盖 Hub 的手持武器身份、弹量或热量。
 
@@ -144,7 +144,7 @@ MDL 设置中新增“弹药数字大小”滑动条：50%–150%，默认 100%�
 
 MDL3 作者：M!ni$try0fSc!eиce。请前往 [MDL3 官方发布页](https://ayakamods.com/mods/mdl3-preview-%E9%BA%A6%E5%BD%93%E5%8A%B33-%E9%A2%84%E8%A7%88%E7%89%88%EF%BC%81.5710/) 阅读安装说明及条款并下载依赖。本仓库和构建包不附带 MDL3、HD2 Data Hub 或 Chef 加载器。
 
-关闭游戏，停用旧版集成 HUD 和提供重复武器／载具界面的冲突模组，再用支持 MDL 的管理器导入 `IntegratedHUD-MDL-0.9.2.zip` 并部署。启用 MDL3 dev43 和 HD2 Data Hub 0.6.0；此版武器 HUD 也依赖 Hub。首次部署图片资源后重启游戏。本版新增强化图标图片，升级后也需重启加载。之后可通过 MDL 启停本模组。
+关闭游戏，停用旧版集成 HUD 和提供重复武器／载具界面的冲突模组，再用支持 MDL 的管理器导入 `IntegratedHUD-MDL-0.9.3.zip` 并部署。启用 MDL3 dev43 和 HD2 Data Hub 0.6.0；此版武器 HUD 也依赖 Hub。首次部署图片资源后重启游戏。本版新增强化图标图片，升级后也需重启加载。之后可通过 MDL 启停本模组。
 
 HUD不覆盖游戏 boot，不调用 FFI，也不需要玩家安装 Python 或外部采样器。安装包不含准星数据修改任务或独立工具。
 
@@ -164,7 +164,7 @@ python tools/build.py --game-root "D:\steam\steamapps\common\Helldivers 2"
 
 ## 日志与目录
 
-武器日志：`%APPDATA%/Arrowhead/Helldivers2/IntegratedHUD-MDL-0.9.2.log`。
+武器日志：`%APPDATA%/Arrowhead/Helldivers2/IntegratedHUD-MDL-0.9.3.log`。
 
 载具日志：同目录的 `driver_hud_lua51.log`；旧 `IntegratedHUD-Narrow200-learned.txt` 仅读取模式值和射速设置，新版不再保存手持识别学习缓存。
 
@@ -241,3 +241,6 @@ Based on **NarrowHUD 2.0.0 by luka189**：保留武器类型／字段、功能�
 
 
 0.9.2：保留内置英文／简体中文，新增 English 手动语言选项（原有选项索引不变），默认跟随 MDL，未知语言回退英文。语言解析加入异常隔离与重入保护，避免宿主语言配置异常或设置回调重入中断面板更新。日志中的 MDL_GUI_FONT_UNAVAILABLE 表示 MDL 字体服务不可用，不能据此认定为语言切换故障。
+
+
+0.9.3：取消主枪及下挂的换弹隐藏。沿用现有读取来源，换弹期间继续显示当前弹量、备弹、热量和模式，不模拟进度、不沿用上次有效弹量；场景、座位及缺失数据的原有保护保留。

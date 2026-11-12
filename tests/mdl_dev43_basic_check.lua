@@ -152,7 +152,8 @@ v=reader.read(.000001)
 assert(v.kind=='ammo'and v.rounds==1 and v.mags==4 and v.ratio==1 and v.mode=='40MM HE','underbarrel UI used main ammo')
 assert(me.weapon.ammo_type=='heat','underbarrel mutated Hub snapshot')
 underbarrel_extra.underbarrel_ammo.reload.active=true
-assert(reader.read(.000002).state=='RELOADING','child reload did not hide HUD')
+underbarrel_extra.underbarrel_ammo.rounds=0;underbarrel_extra.underbarrel_ammo.mags=3
+v=reader.read(.000002);assert(v.state=='READY'and v.reloading and v.rounds==0 and v.mags==3,'child reload did not show current ammo')
 underbarrel_extra.underbarrel_ammo=nil
 assert(reader.read(.000003).state=='WAIT UNDERBARREL','missing child leaked main ammo')
 underbarrel_extra=nil
@@ -187,7 +188,8 @@ me.weapon.charge=0;assert(not reader.read(.0012).charging,'released ammo charge 
 
 me.weapon.entity=103;me.weapon.rounds=7;me.weapon.mags=5
 v=reader.read(.002);assert(v.entity==103 and v.rounds==7,'support identity failed')
-me.weapon.reload.active=true;assert(reader.read(.003).state=='RELOADING')
+me.weapon.reload.active=true;me.weapon.rounds=0;me.weapon.mags=4
+v=reader.read(.003);assert(v.state=='READY'and v.reloading and v.rounds==0 and v.mags==4 and v.ratio==0,'reload used old/invented ammo or hid HUD')
 me.weapon=nil;assert(reader.read(.004).state=='NO WEAPON','previous weapon leaked across empty held item')
 me.alive=false;assert(reader.read(.005).state=='NO AVATAR')
 me.alive=true;me.entity=11
@@ -222,7 +224,7 @@ me.backpack={entity=600,count=400,max=1000}
 me.weapon.backpack_fed=nil
 assert(reader.read(.00654).state=='UNSUPPORTED AMMO','unknown support inferred as backpack-fed')
 me.weapon.backpack_fed=true;me.weapon.reload={active=true}
-assert(reader.read(.00655).state=='RELOADING','belt reload not hidden')
+v=reader.read(.00655);assert(v.state=='READY'and v.reloading and v.backpack_direct and v.rounds==400,'belt reload hid current backpack ammo')
 me.weapon.reload=nil;me.backpack.count=nil
 assert(reader.read(.00656).state=='WAIT BACKPACK','missing pack count reused or invented')
 me.backpack={entity=600,count=1200,max=1000}
@@ -269,7 +271,7 @@ for _,line in ipairs(input_logs)do if line:find('HUB_INPUT held{entity=107',1,tr
 end end
 assert(trace,'unsupported weapon returned before logging Hub inputs')
 reader.shutdown()
--- Real MDL view: one arc, native text, images, scaling and reload clearing.
+-- Real MDL view: one arc, native text, images, scaling and reload visibility.
 local view=env.require(B..'weapon_view').new(function()end)
 view.update({state='READY',entity=106,kind='ammo',backpack_direct=true,ratio=.75,rounds=750},1,1)
 local belt_number=false
@@ -302,7 +304,7 @@ assert(math.abs(ammo[2]-(960+(x-960)*1.5))<1e-6 and math.abs(ammo[3]-(540+(y-540
 assert(ammo[4].size==54,'ammo size did not compose')
 view.update({state='NO MISSION'},1,1);assert(count()==0,'ship did not clear weapon drawings')
 view.update(v,1,1)
-view.update({state='RELOADING'},1,1);assert(count()==0,'reload did not hide HUD')
+v.reloading=true;view.update(v,1,1);assert(count()>0,'reload hid valid weapon HUD');v.reloading=false
 view.update(v,1,1);env.MDL3.gui=api();view.update(v,1,1);assert(count()>0,'GUI provider reload lost drawings')
 view.shutdown();assert(count()==0)
 -- Vehicle renderer adapter: bottom-up to MDL top-down, native numbers, retained IDs.
@@ -559,5 +561,5 @@ menu.set('integrated_hud.booster_hud',false);mod.on_update(migrated,0.016)
 assert(not panel_live and not blood_live,'public master toggle ignored')
 mod.on_disable()
 return {localization_three_choices_safe_fallback_and_mdl_default=true,belt_grenade_three_rpm_settings_and_ambiguity=true,hub_captured_three_connected_weapons_false_feed_flag=true,hub_unsupported_input_diagnostics_and_pack_lease=true,hub_direct_backpack_feed_and_empty_count=true,mdl_unified_options_migration_and_live_poll=true,weapon_independent_inner_charge_without_numbers=true,weapon_ship_gate_and_scene_transition=true,booster_three_modes_and_panel_visibility=true,squad_boosters_incremental_native_index_and_cache=true,network_boosters_peer_join_no_native_scan=true,squad_boosters_peer_join_and_self=true,squad_boosters_native_images_and_empty_hex=true,squad_boosters_unknown_and_cleanup=true,squad_boosters_upper_left_anchor=true,hub_exact_weapon_no_firing_needed=true,hub_network_ids_separated=true,hub_backpack_fallback_no_double_count=true,hub_backpack_lease_warm_and_pickup_refresh=true,vehicle_hp_measured_center_and_75pct_size=true,hub_heat_magazine_switch=true,hub_backpack_reserve_passthrough=true,
- hub_reload_hidden=true,hub_respawn_and_disable_clear=true,mdl_native_text_and_images=true,mdl_weapon_fixed_anchor_scale=true,
+ hub_reload_keeps_current_ammo_visible=true,hub_respawn_and_disable_clear=true,mdl_native_text_and_images=true,mdl_weapon_fixed_anchor_scale=true,
  mdl_vehicle_adapter=true,mdl_ping_unicode_and_position=true,mdl_lifecycle_cleanup=true}
