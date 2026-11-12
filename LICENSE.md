@@ -12,4 +12,5 @@ NarrowHUD 2.0.0 衍生的武器传感器与随附数据依其专门许可使用�
 
 MDL3 是单独安装的依赖，其许可与条款由作者规定。本仓库不附带或重新授权 MDL3、HD2 Data Hub 或 Chef 加载器。
 
-独立狙击准星工具使用的 PyNaCl/libsodium、cffi、pycparser、Python 及 PyInstaller 依各自许可分发，完整附带文本见 `assets/native_sniper_tool/licenses/`（发布包内为 `NativeSniperTool/licenses/`）。这些组件不适用 HUD 第三方模块的统一许可。
+
+0.9.1 不再分发独立狙击准星工具及其依赖；历史版本的相关署名与完整许可保留在 Git 历史及本地归档中。

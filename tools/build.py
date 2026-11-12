@@ -6,7 +6,7 @@ import json
 import re
 import struct
 import zipfile
-from archive import archive, resource_hash, lua_value, PREFIX
+from archive import resource_hash, lua_value, PREFIX
 from geometry import triangulate_polygon
 from locales import compile_locales
 
@@ -150,32 +150,13 @@ def main():
     assert sources[entry].startswith('-- HD2-Addon: ' + entry + '\n')
     from lupa.lua51 import LuaRuntime
     lua = LuaRuntime(unpack_returned_tuples=True)
-    import sys
-    sys.path.insert(0, str(ROOT / 'tests'))
-    from native_sniper_basic_check import check as check_native, render as render_native
-    native_spec = json.loads(read('data/native_sniper.json'))
-    assert native_spec['build'] == cfg['steam_build']
-    native_template = read('src/native_sniper_setup.lua')
-    native_entry = 'mods/integrated_hud/native_sniper_setup'
-    notice_source = read('src/native_sniper_notice.lua')
-    # The one-shot task can display Chinese even if HUD core is not selected.
-    notice_support = {'mods/integrated_hud/native_sniper_notice': notice_source}
-    notice_support[BASE + 'mdl_canvas'] = sources[BASE + 'mdl_canvas']
-    native_sources = {mode: dict(notice_support, **{native_entry: render_native(native_template, mode, native_spec, VERSION, lua_value)})
-                      for mode in ('apply', 'restore')}
-    for variant in native_sources.values():
-        for name, source in variant.items():
-            lua.compile(source, name=name)
-            for dep in re.findall(r"require\(['\"]([^'\"]+)['\"]\)", source):
-                assert dep in variant, (name, dep)
     args.output_dir.mkdir(parents=True, exist_ok=True)
     for name, source in sources.items():
         lua.compile(source, name=name)
         for dep in re.findall(r"require\(['\"]([^'\"]+)['\"]\)", source):
             assert dep in sources, (name, dep)
-    lua.globals().SOURCES = lua.table_from(dict(sources, **notice_support))
+    lua.globals().SOURCES = lua.table_from(sources)
     checks = dict(lua.execute(read('tests/mdl_dev43_basic_check.lua')).items())
-    checks.update(check_native(native_template, lua_value, args.output_dir))
     # Retain the bounded RTT provider checks; its renderer is covered by dev43 checks.
     ping_test = LuaRuntime(unpack_returned_tuples=True)
     ping_test.globals().SOURCES = ping_test.table_from(sources)
@@ -197,7 +178,6 @@ def main():
     workflow = workflow.replace("local f=assert(loadstring(CORE_SOURCE,'@original_driver_core'))", read('tests/mdl_vehicle_gui_mock.lua') + "\nlocal f=assert(loadstring(CORE_SOURCE,'@original_driver_core'))")
     checks.update({'vehicle_' + k: v for k, v in dict(vehicle_test.execute(workflow).items()).items()
                    if not k.startswith('weapon_')})
-    inputs = json.loads(read('build-inputs.json'))
     report = {'version': VERSION, 'steam_build': cfg['steam_build'], 'pe_key': cfg['pe_key'],
               'loader': 'MDL3', 'weapon_reader': 'HD2 Data Hub 0.6 held entity/ammo/heat/reload/charge; unique local carried-slot network binding for settings',
               'chef_required': False, 'hd2data_required': True, 'hd2data_minimum': '0.6.0', 'renderer': 'MDL3.gui api 1', 'mdl_minimum': 'dev43',
@@ -208,12 +188,7 @@ def main():
               'flamer_frv': {'front_seats_only': True, 'driver_bit': 2, 'passenger_bit': 4, 'gunner_bit': 1, 'reader_previously_user_verified': True, 'mdl_gui_runtime_verified': False},
               'runtime_verified': False, 'deployed': False, 'boot_override': False,
               'checksum_sidecars': False, 'basic_checks': checks,
-              'native_sniper': {'tool_version': inputs['native_sniper_tool']['version'],
-                                'standalone_tool': True, 'confirmation_required': True,
-                                'user_verified': inputs['native_sniper_tool']['user_verified'],
-                                'startup_installer_bundled': True, 'startup_exact_data_check': True,
-                                'manager_choices': ['restore', 'apply'], 'center_result_notice': True,
-                                'game_data_bundled': False, 'standalone_tool_deployed_by_manager': False},
+              'hud_core_only': True, 'manager_options': False, 'native_sniper_bundled': False,
               'source_sha256': {k: hashlib.sha256(v.encode()).hexdigest() for k, v in sources.items()}}
     from mdl_images import pack
     from booster_icons import prepare
@@ -223,49 +198,21 @@ def main():
     assert resource_hash('boot') not in [struct.unpack_from('<Q', patch, 72 + struct.unpack_from('<I', patch, 4)[0] * 32 + i * 80)[0] for i in range(count)]
     manifest = {'Version': 1, 'Guid': '61710665-8698-4f23-bff7-00fbd715b2d8',
                 'Name': '集成HUD MDL ' + VERSION,
-                'Description': '需要MDL dev43及HD2 Data Hub 0.6.0。全部HUD使用MDL GUI绘制及游戏菜单字体；Hub直接读取手持武器、弹量、备弹、热量和换弹状态，换弹隐藏。载具及模式射速保留补充读取。小队强化读取Hub逐成员信息，原生强化图标位于彩色标签左上角，无强化为空心六边形；支持独立启停、武器整体及弹药数字缩放、延迟面板缩放和位置调整；保留管理器狙击准星一次性启用/关闭及独立修复工具。0.8.13蓄力进度由内侧独立青色圆弧显示，不显示蓄力数字，外圈及原弹药/热量数字不变；仅地面任务显示武器HUD。强化可选仅血条/仅列表/血条+列表，延迟数字独立开关；延迟与列表强化均关闭时隐藏面板。',
-                'Options': [
-                    {'Name': 'HUD核心',
-                     'Description': 'Hub武器、MDL绘制载具及延迟HUD；支持MDL局内启停及设置。狙击枪准星可选择下方一次性任务；亦随包提供独立修复工具。',
-                     'SubOptions': [
-                         {'Name': '集成HUD', 'Description': '武器、载具HUD；支持MDL局内启停及设置。', 'Include': ['HUD']}
-                     ]},
-                    {'Name': '狙击枪原生准星（一次性操作，需重启）',
-                     'Description': '开启/关闭互斥。启动后完成校验与修改，屏幕中央显示结果。成功后重启，并可在管理器取消本组选项，准星状态仍保留。不兼容数据拒绝写入，可使用随包独立工具。',
-                     'SubOptions': [
-                         {'Name': '关闭狙击枪准星（恢复原版）', 'Description': '一次性恢复原版准星，成功后显示中央提示；重启应用后可取消本选项。', 'Include': ['ReticleRestore']},
-                         {'Name': '开启狙击枪准星', 'Description': '一次性为APW-1、R-40、AMW-20启用原生准星，成功后显示中央提示；重启应用后可取消本选项。', 'Include': ['ReticleApply']}
-                     ]}
-                ]}
+                'Description': '需要 MDL dev43 及 HD2 Data Hub 0.6.0。启用并部署即安装 HUD 核心：武器弹药、热量、蓄力及下挂显示，FRV／坦克／机甲 HUD，小队强化与网络延迟。支持在 MDL 内设置和启停；不包含狙击枪准星修改或独立工具。',
+                'Options': []}
     files = {'manifest.json': json.dumps(manifest, ensure_ascii=False, indent=2).encode(),
-             'HUD/9ba626afa44a3aa3.patch_0': patch,
-             'HUD/9ba626afa44a3aa3.patch_0.stream': b'',
-             'HUD/9ba626afa44a3aa3.patch_0.gpu_resources': gpu,
+             '9ba626afa44a3aa3.patch_0': patch,
+             '9ba626afa44a3aa3.patch_0.stream': b'',
+             '9ba626afa44a3aa3.patch_0.gpu_resources': gpu,
              'VERIFICATION.json': json.dumps(report, ensure_ascii=False, indent=2).encode(),
              'README.md': read('README.md').encode(),
              'version.json': read('version.json').encode(),
              'CREDITS.md': read('CREDITS.md').encode(),
              'LICENSE.md': read('LICENSE.md').encode()}
-    # The confirmed standalone switch runs only when explicitly launched by the user.
-    # Offline repair and manager-selected startup jobs must not run concurrently.
-    tool_assets = ROOT / 'assets/native_sniper_tool'
-    tool_spec = inputs['native_sniper_tool']
-    expected_tool_files = tool_spec['files_sha256']
-    assert {p.relative_to(tool_assets).as_posix() for p in tool_assets.rglob('*') if p.is_file()} == set(expected_tool_files)
-    for name, expected in expected_tool_files.items():
-        data = (tool_assets / name).read_bytes()
-        assert hashlib.sha256(data).hexdigest() == expected, 'Unverified sniper tool asset: ' + name
-        files['NativeSniperTool/' + name] = data
-    files['NativeSniperTool/README.md'] = read('tools/native_sniper/README.md').encode()
-    for path in sorted((ROOT / 'tools/native_sniper').iterdir()):
-        if path.is_file() and path.suffix in ('.py', '.cpp', '.exe'):
-            files['NativeSniperTool/source/' + path.name] = path.read_bytes()
-    for mode, folder in [('apply', 'ReticleApply'), ('restore', 'ReticleRestore')]:
-        files[folder + '/9ba626afa44a3aa3.patch_0'] = archive({k: v.encode() for k, v in native_sources[mode].items()})
-        files[folder + '/9ba626afa44a3aa3.patch_0.stream'] = b''
-        files[folder + '/9ba626afa44a3aa3.patch_0.gpu_resources'] = b''
-    assert len(manifest['Options']) == 2 and manifest['Options'][0]['Name'] == 'HUD核心'
-    assert len(manifest['Options'][1]['SubOptions']) == 2
+    assert manifest['Options'] == []
+    assert not any('sniper' in name.lower() or name.startswith(('HUD/', 'ReticleApply/', 'ReticleRestore/')) for name in files)
+    checks['hud_core_only_no_manager_options_or_sniper_payload'] = True
+    files['VERIFICATION.json'] = json.dumps(report, ensure_ascii=False, indent=2).encode()
     assert not any(name.endswith(('.dl_bin', '.dll')) for name in files)
     for family in ['driver_hud', 'narrowhud200']:
         for path in sorted((ROOT / 'third_party' / family).rglob('*')):

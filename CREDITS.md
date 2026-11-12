@@ -12,6 +12,7 @@ Integrated HUD 0.8.5：2375120981。加载、启停和全部绘制使用 MDL3；
 
 游戏资源、名称、武器图标和接口标识属于各自权利人。本仓库不包含游戏 DLL、原版 boot 或完整游戏资源包。第三方素材不因本项目发布而重新许可。
 
-- **独立准星工具 NativeSniper Toggle 0.2.0**：离线容器解码参考用户提供的 SHODAN Stat Editor Offline；字段定义参考 [FileDiver](https://github.com/xypwn/filediver/tree/master/datalibrary)。使用 PyNaCl/libsodium、cffi、pycparser、Python 和 PyInstaller；便携运行时及第三方依赖许可保留在 `assets/native_sniper_tool/licenses/`，发布包对应 `NativeSniperTool/licenses/`。工具源码及校验求解器见 `tools/native_sniper/`，不附带完整游戏数据或 DLL。
 
 - **强化图标**：来自本地游戏原生 `content/ui/shared/resources/generated_icons/booster_icons`，构建时保持原始矢量图案与颜色转换为 MDL GUI 图片；图标权利归游戏及其权利人所有。仅分发所需小图标，不附带完整原生资源。
+
+0.9.1 不再分发独立狙击准星工具及其依赖；历史版本的相关署名与完整许可保留在 Git 历史及本地归档中。

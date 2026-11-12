@@ -1,10 +1,10 @@
 {
   "name": "集成HUD（Integrated HUD）",
   "slug": "IntegratedHUD",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "mode": "mdl-gamesession",
-  "steam_build": "26251122",
-  "pe_key": "6AE0E5FF:03382000:6AE0964A",
+  "steam_build": "26568081",
+  "pe_key": "6AF322C1:03382000:6AF2D5E6",
   "mdl": "3.0.0-dev.43-preview",
   "hd2data_required": true,
   "chef_required": false,

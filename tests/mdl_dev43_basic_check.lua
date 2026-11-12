@@ -324,10 +324,6 @@ local oldx,oldy=texts[1][2],texts[1][3]
 ping.set_position(50,25);ping.update(1);texts=text_items();assert(texts[1][2]>oldx and texts[1][3]<oldy)
 cursor=true;old=finishes;ping.update(2);assert(count('text')==5 and old==finishes)
 ping.shutdown();assert(count()==0)
--- Real one-shot notice presentation; no write task is executed here.
-local notice=env.require('mods/integrated_hud/native_sniper_notice').new(E,'apply')
-notice.update('success',0);assert(count('rect')==1 and count('text')==5)
-assert(text_items()[1][1]:find('成功启用',1,true));notice.shutdown();assert(count()==0)
 -- Managed toggles still dispatch and independently stop each view.
 local reads,vehicle_updates,vehicle_stops=0,0,0
 local weapon_blocked=false
@@ -552,4 +548,4 @@ assert(not panel_live and not blood_live,'public master toggle ignored')
 mod.on_disable()
 return {localization_dynamic_callbacks_two_choices_and_mdl_default=true,belt_grenade_three_rpm_settings_and_ambiguity=true,hub_captured_three_connected_weapons_false_feed_flag=true,hub_unsupported_input_diagnostics_and_pack_lease=true,hub_direct_backpack_feed_and_empty_count=true,mdl_unified_options_migration_and_live_poll=true,weapon_independent_inner_charge_without_numbers=true,weapon_ship_gate_and_scene_transition=true,booster_three_modes_and_panel_visibility=true,squad_boosters_incremental_native_index_and_cache=true,network_boosters_peer_join_no_native_scan=true,squad_boosters_peer_join_and_self=true,squad_boosters_native_images_and_empty_hex=true,squad_boosters_unknown_and_cleanup=true,squad_boosters_upper_left_anchor=true,hub_exact_weapon_no_firing_needed=true,hub_network_ids_separated=true,hub_backpack_fallback_no_double_count=true,hub_backpack_lease_warm_and_pickup_refresh=true,vehicle_hp_measured_center_and_75pct_size=true,hub_heat_magazine_switch=true,hub_backpack_reserve_passthrough=true,
  hub_reload_hidden=true,hub_respawn_and_disable_clear=true,mdl_native_text_and_images=true,mdl_weapon_fixed_anchor_scale=true,
- mdl_vehicle_adapter=true,mdl_ping_unicode_and_position=true,mdl_one_shot_notice=true,mdl_lifecycle_cleanup=true}
+ mdl_vehicle_adapter=true,mdl_ping_unicode_and_position=true,mdl_lifecycle_cleanup=true}
