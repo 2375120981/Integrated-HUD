@@ -31,7 +31,7 @@ end
 local function log(s)
  pcall(function()
   local base=os.getenv('APPDATA');if not base then return end
-  local f=io.open(base..'/Arrowhead/Helldivers2/IntegratedHUD-MDL-0.9.1.log','a')
+  local f=io.open(base..'/Arrowhead/Helldivers2/IntegratedHUD-MDL-0.9.2.log','a')
   if f then f:write(string.format('%.3f %s\n',clock,s));f:close()end
  end)
 end
@@ -113,7 +113,7 @@ local function stop()
  if network_hud then call(network_hud.shutdown);network_hud=nil end
 end
 definition={
- name='集成HUD',version='0.9.1',author='2375120981',
+ name='集成HUD',version='0.9.2',author='2375120981',
  description='需要 MDL dev43 与 HD2 Data Hub 0.6.0；MDL GUI 绘制全部 HUD，Hub 读取手持武器及弹药。',
  options={},
  on_enable=function(ctx)

@@ -1,6 +1,6 @@
 -- Pure-data translations compiled from locales/*.json. No runtime file IO.
 local catalogs=require('mods/integrated_hud/mdl_gamesession/locale_data')
-local M={};local preference=nil
+local M={};local preference=nil;local resolving=false;local last_code='en'
 local function call(f,...)if type(f)=='function'then local ok,v=pcall(f,...);if ok then return v end end end
 local function language(v)
  if type(v)~='string'or v==''then return nil end
@@ -12,8 +12,10 @@ local function language(v)
  return s:match('^[a-z]+')
 end
 function M.set_source(reader)preference=reader end
-function M.code()
- if call(preference)=='zh-CN'then return 'zh-CN' end
+local function resolve()
+ local selected=call(preference)
+ if selected=='en'then return 'en' end
+ if selected=='zh-CN'then return 'zh-CN' end
  local mdl=rawget(_G,'MDL');local host=rawget(_G,'MDL3')
  local i18n=type(mdl)=='table'and mdl.i18n
  local code=type(i18n)=='table'and(language(i18n.code)or language(i18n.language)or language(i18n.lang))
@@ -26,6 +28,16 @@ function M.code()
   end end
  end
  return code and catalogs[code]and code or'en'
+end
+-- Menu APIs may resolve label callbacks while reading a setting. Guard
+-- re-entry and contain malformed/temporarily unavailable host language state.
+function M.code()
+ if resolving then return last_code end
+ resolving=true
+ local ok,code=pcall(resolve)
+ resolving=false
+ last_code=ok and type(code)=='string'and catalogs[code]and code or'en'
+ return last_code
 end
 function M.t(key)
  local catalog=catalogs[M.code()]or catalogs.en
