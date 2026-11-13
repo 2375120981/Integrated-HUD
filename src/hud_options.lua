@@ -5,7 +5,7 @@ local i18n=require('mods/integrated_hud/mdl_gamesession/localization')
 local OWNER='mods/integrated_hud/mdl_gamesession/main'
 local CHOICES={'仅血条','仅列表','血条+列表'}
 local SPECS={
- {key='language',type='choice',default=1,choices={'auto','zh-CN','en'},choice_keys={'language.auto','language.zh-CN','language.en'},native_choices={'跟随 MDL','简体中文','English'}},
+ {key='language',type='choice',default=1,choices={'auto','zh-CN','en','ru-RU'},choice_keys={'language.auto','language.zh-CN','language.en','language.ru-RU'},native_choices={'跟随 MDL','简体中文','English','Русский'}},
  {key='weapon_hud',type='toggle',default=true,legacy=true},
  {key='frv_hud',type='toggle',default=true,legacy=true},
  {key='tank_hud',type='toggle',default=true,legacy=true},

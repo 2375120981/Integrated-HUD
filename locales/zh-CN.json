@@ -26,9 +26,11 @@
     "options.network_y.label": "延迟面板纵向位置",
     "options.network_y.description": "百分比：0 顶部、50 垂直居中、100 底部。",
     "options.language.label": "语言",
-    "options.language.description": "默认跟随 MDL 界面语言，也可固定为简体中文或 English。无法读取 MDL 语言或对应翻译不存在时使用英文。",
+    "options.language.description": "默认跟随 MDL 界面语言，也可固定为简体中文、English 或 Русский。自动模式下，无法读取 MDL 语言或对应翻译不存在时使用英文。",
     "language.auto": "跟随 MDL",
     "language.zh-CN": "简体中文",
+    "language.en": "English",
+    "language.ru-RU": "Русский",
     "booster.healthbar": "仅血条",
     "booster.list": "仅列表",
     "booster.both": "血条+列表",
@@ -44,7 +46,6 @@
     "panel.hub_wait": "等待 Hub 就绪",
     "panel.mission_wait": "等待任务",
     "panel.ids_wait": "等待玩家信息",
-    "mod.title": "集成HUD",
-    "language.en": "English"
+    "mod.title": "集成HUD"
   }
 }

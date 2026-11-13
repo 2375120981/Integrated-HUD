@@ -7,15 +7,18 @@ local function language(v)
  local s=v:lower():gsub('_','-')
  if s=='auto'or s=='system'or s=='default'then return nil end
  if s:sub(1,2)=='zh'or s=='chinese'or s=='simplified chinese'then return 'zh-CN' end
+ if s:sub(1,2)=='ru'or s=='russian'then return 'ru-RU' end
  if catalogs[v]then return v end
  if catalogs[s]then return s end
+ for k,_ in pairs(catalogs) do
+  if k:lower()==s then return k end
+ end
  return s:match('^[a-z]+')
 end
 function M.set_source(reader)preference=reader end
 local function resolve()
- local selected=call(preference)
- if selected=='en'then return 'en' end
- if selected=='zh-CN'then return 'zh-CN' end
+ local selected=language(call(preference))
+ if selected and catalogs[selected]then return selected end
  local mdl=rawget(_G,'MDL');local host=rawget(_G,'MDL3')
  local i18n=type(mdl)=='table'and mdl.i18n
  local code=type(i18n)=='table'and(language(i18n.code)or language(i18n.language)or language(i18n.lang))
@@ -27,7 +30,7 @@ local function resolve()
    if type(c)=='table'then code=language(c.language)or language(c.lang);if code then break end end
   end end
  end
- return code and catalogs[code]and code or'en'
+ return (code and catalogs[code] and code) or (not code and catalogs[last_code] and last_code) or 'en'
 end
 -- Menu APIs may resolve label callbacks while reading a setting. Guard
 -- re-entry and contain malformed/temporarily unavailable host language state.
@@ -36,7 +39,9 @@ function M.code()
  resolving=true
  local ok,code=pcall(resolve)
  resolving=false
- last_code=ok and type(code)=='string'and catalogs[code]and code or'en'
+-- Preserve the last valid language if resolution fails, instead of resetting to English.
+ if ok and type(code)=='string'and catalogs[code]then last_code=code
+ end
  return last_code
 end
 function M.t(key)

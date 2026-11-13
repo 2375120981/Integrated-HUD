@@ -26,9 +26,11 @@
     "options.network_y.label": "Player panel vertical position",
     "options.network_y.description": "Percent: 0 = top, 50 = center, 100 = bottom.",
     "options.language.label": "Language",
-    "options.language.description": "Follow the MDL interface language, or select Simplified Chinese or English. Missing or unsupported MDL languages fall back to English.",
+    "options.language.description": "Follow the MDL interface language, or select Simplified Chinese, English, or Russian. In Auto mode, unreadable or unsupported MDL languages fall back to English.",
     "language.auto": "Follow MDL",
     "language.zh-CN": "简体中文",
+    "language.en": "English",
+    "language.ru-RU": "Русский",
     "booster.healthbar": "Health bars only",
     "booster.list": "Player list only",
     "booster.both": "Health bars + player list",
@@ -44,7 +46,6 @@
     "panel.hub_wait": "WAITING FOR HUB",
     "panel.mission_wait": "WAITING FOR MISSION",
     "panel.ids_wait": "WAITING FOR IDS",
-    "mod.title": "Integrated HUD",
-    "language.en": "English"
+    "mod.title": "Integrated HUD"
   }
 }
