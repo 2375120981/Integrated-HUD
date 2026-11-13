@@ -16,3 +16,5 @@ Integrated HUD 0.8.5：2375120981。加载、启停和全部绘制使用 MDL3；
 - **强化图标**：来自本地游戏原生 `content/ui/shared/resources/generated_icons/booster_icons`，构建时保持原始矢量图案与颜色转换为 MDL GUI 图片；图标权利归游戏及其权利人所有。仅分发所需小图标，不附带完整原生资源。
 
 0.9.1 不再分发独立狙击准星工具及其依赖；历史版本的相关署名与完整许可保留在 Git 历史及本地归档中。
+
+- **俄语本地化与语言识别改进 / Russian localization and language detection:** [alishaaryni](https://github.com/alishaaryni)，通过 [PR #2](https://github.com/2375120981/Integrated-HUD/pull/2) 贡献，整合于 0.9.4。

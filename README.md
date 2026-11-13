@@ -29,7 +29,7 @@
 3. 维护者审核翻译、运行构建校验，并确认 MDL 返回的语言标识能匹配文件名；必要时在 `src/localization.lua` 中补充语言别名。
 4. 检查游戏内字体、文本长度及布局后合并 PR，重新构建并发布模组。**仅合并 JSON 文件不会更新已经发布的 ZIP，也不能通过向已安装模组旁放置 JSON 来加载翻译。**
 
-当前语言设置提供“跟随 MDL”、“简体中文”、“English”和“Русский”，可通过点击依次循环切换，默认跟随 MDL。自动模式下，无法读取 MDL 语言或对应翻译不存在时回退到英文。翻译范围为运行时设置菜单、选项说明和玩家面板文字；独立狙击准星工具、管理器安装选项及武器弹种缩写暂不包含在此翻译接口中。更多说明见 [locales/README.md](locales/README.md)。
+当前语言设置提供“跟随 MDL”、“简体中文”、“English”和“Русский”，可通过点击依次循环切换，默认跟随 MDL。自动模式下，未提供对应翻译的语言回退英文；无法读取 MDL 语言或读取异常时沿用本次运行中上一次有效语言，尚无历史语言时使用英文。翻译范围为运行时设置菜单、选项说明和玩家面板文字；独立狙击准星工具、管理器安装选项及武器弹种缩写暂不包含在此翻译接口中。更多说明见 [locales/README.md](locales/README.md)。
 
 ### English guide
 
@@ -37,9 +37,9 @@ Copy the **complete [English template](locales/en.json)** to `locales/<language-
 
 Fork this repository, add the translation on your branch, and submit a pull request. Include the language name/code and any in-game test results or screenshots. The maintainer will validate the file during the build, check MDL language-code matching (adding aliases if needed), and review font support and layout before merging and publishing a rebuilt package. Adding a translation to the repository does not update an existing release ZIP; placing a JSON file beside an installed mod does not load it.
 
-The language setting currently cycles through **Follow MDL** (default), **Simplified Chinese**, **English**, and **Russian**. When set to Follow MDL, unreadable or unsupported MDL languages fall back to English (any future community translations added to locales/ will also be picked up automatically in this mode). This interface covers runtime settings and player-panel text, not the standalone sniper tool, mod-manager installation options, or weapon ammunition abbreviations.
+The language setting currently cycles through **Follow MDL** (default), **Simplified Chinese**, **English**, and **Russian**. In Follow MDL mode, unsupported languages fall back to English. If detection is unavailable or throws an error, the last valid language in this runtime is retained; English is used if none has been resolved yet. This interface covers runtime settings and player-panel text, not the standalone sniper tool, mod-manager installation options, or weapon ammunition abbreviations.
 
-当前版本：**0.9.3**。武器身份、弹药、热量和换弹状态改用 HD2 Data Hub；全部 HUD、数字和文字改用 MDL3.gui 和游戏菜单字体。载具数据及武器功能模式／射速保留经过约束的 GameSession 补充读取。保留独立开关、缩放、延迟面板位置。内侧蓄力圆弧已通过用户实机验证，整合包已通过基本构建检查。血条旁的队友强化仍有错位反馈，列表中的玩家／强化对应正常。
+当前版本：**0.9.4**。武器身份、弹药、热量和换弹状态改用 HD2 Data Hub；全部 HUD、数字和文字改用 MDL3.gui 和游戏菜单字体。载具数据及武器功能模式／射速保留经过约束的 GameSession 补充读取。保留独立开关、缩放、延迟面板位置。内侧蓄力圆弧已通过用户实机验证，整合包已通过基本构建检查。血条旁的队友强化仍有错位反馈，列表中的玩家／强化对应正常。
 
 ## 已知问题
 
@@ -144,7 +144,7 @@ MDL 设置中新增“弹药数字大小”滑动条：50%–150%，默认 100%�
 
 MDL3 作者：M!ni$try0fSc!eиce。请前往 [MDL3 官方发布页](https://ayakamods.com/mods/mdl3-preview-%E9%BA%A6%E5%BD%93%E5%8A%B33-%E9%A2%84%E8%A7%88%E7%89%88%EF%BC%81.5710/) 阅读安装说明及条款并下载依赖。本仓库和构建包不附带 MDL3、HD2 Data Hub 或 Chef 加载器。
 
-关闭游戏，停用旧版集成 HUD 和提供重复武器／载具界面的冲突模组，再用支持 MDL 的管理器导入 `IntegratedHUD-MDL-0.9.3.zip` 并部署。启用 MDL3 dev43 和 HD2 Data Hub 0.6.0；此版武器 HUD 也依赖 Hub。首次部署图片资源后重启游戏。本版新增强化图标图片，升级后也需重启加载。之后可通过 MDL 启停本模组。
+关闭游戏，停用旧版集成 HUD 和提供重复武器／载具界面的冲突模组，再用支持 MDL 的管理器导入 `IntegratedHUD-MDL-0.9.4.zip` 并部署。启用 MDL3 dev43 和 HD2 Data Hub 0.6.0；此版武器 HUD 也依赖 Hub。首次部署图片资源后重启游戏。本版新增强化图标图片，升级后也需重启加载。之后可通过 MDL 启停本模组。
 
 HUD不覆盖游戏 boot，不调用 FFI，也不需要玩家安装 Python 或外部采样器。安装包不含准星数据修改任务或独立工具。
 
@@ -164,7 +164,7 @@ python tools/build.py --game-root "D:\steam\steamapps\common\Helldivers 2"
 
 ## 日志与目录
 
-武器日志：`%APPDATA%/Arrowhead/Helldivers2/IntegratedHUD-MDL-0.9.3.log`。
+武器日志：`%APPDATA%/Arrowhead/Helldivers2/IntegratedHUD-MDL-0.9.4.log`。
 
 载具日志：同目录的 `driver_hud_lua51.log`；旧 `IntegratedHUD-Narrow200-learned.txt` 仅读取模式值和射速设置，新版不再保存手持识别学习缓存。
 
@@ -244,3 +244,6 @@ Based on **NarrowHUD 2.0.0 by luka189**：保留武器类型／字段、功能�
 
 
 0.9.3：取消主枪及下挂的换弹隐藏。沿用现有读取来源，换弹期间继续显示当前弹量、备弹、热量和模式，不模拟进度、不沿用上次有效弹量；场景、座位及缺失数据的原有保护保留。
+
+
+0.9.4：合并 alishaaryni 提交的俄语翻译及语言识别改进（PR #2）。提供跟随 MDL／简体中文／English／Русский四个选项，保留旧设置索引；增加俄语别名及语言代码大小写匹配。语言读取失败时保留本次运行中上一次有效语言，未支持的语言仍回退英文。继承 0.9.3 的换弹持续显示及既有座位隐藏规则。
