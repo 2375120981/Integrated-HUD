@@ -74,15 +74,14 @@ function M.new(E,log)
   if backpack_key and next_key~=backpack_key then call(details.refresh)end
   backpack_key=next_key
   -- Do not retain a different weapon across an empty/changing Hub snapshot.
-  if type(w.reload)=='table'and w.reload.active==true then return{state='RELOADING',entity=w.entity}end
   local v={state='READY',entity=w.entity,mode='',rpm='',safety=''}
   local extra=details.read(w.entity,now,me)
   if extra and extra.underbarrel_active then
    if type(extra.underbarrel_ammo)~='table'then return{state='WAIT UNDERBARREL',entity=w.entity}end
    -- Local replacement only: never mutate the Hub snapshot or held identity.
    w=extra.underbarrel_ammo
-   if type(w.reload)=='table'and w.reload.active then return{state='RELOADING',entity=v.entity}end
   end
+  v.reloading=type(w.reload)=='table'and w.reload.active==true or false
   if extra and not extra.underbarrel_active and extra.backpack_fed==true then fed_entities[w.entity]=true end
   -- Captured connected weapons report backpack_fed=false: that flag cannot
   -- identify this path. Corroborate held identity with both Hub inventory views
